@@ -4,10 +4,17 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { seedDatabase } from "./seed-data";
 import type { DB } from "./index";
 
-const url = process.env.DATABASE_URL;
-if (!url) throw new Error("DATABASE_URL is not set (put your Supabase connection string in .env).");
+async function main() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set (put your Supabase connection string in .env).");
 
-const client = postgres(url, { max: 1 });
-await seedDatabase(drizzle(client) as unknown as DB);
-await client.end();
-console.log("Seed complete.");
+  const client = postgres(url, { max: 1, prepare: false });
+  await seedDatabase(drizzle(client) as unknown as DB);
+  await client.end();
+  console.log("Seed complete.");
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
