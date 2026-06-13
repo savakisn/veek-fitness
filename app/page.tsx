@@ -1,65 +1,102 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Flame, Plus, ChevronRight } from "lucide-react";
+import { getLocation } from "@/lib/location";
+import { getStreak, getSuggestedRoutine, getRecentWorkouts } from "@/lib/db/queries";
+import { PageHeader } from "@/components/page-header";
+import { LocationToggle } from "@/components/location-toggle";
+import { RoutineCard } from "@/components/routine-card";
+import { Progress } from "@/components/ui/progress";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { prettyDate, todayISO } from "@/lib/format";
 
-export default function Home() {
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+export default async function TodayPage() {
+  const location = await getLocation();
+  const [streak, suggested, recent] = await Promise.all([
+    getStreak(),
+    getSuggestedRoutine(location),
+    getRecentWorkouts(5),
+  ]);
+
+  const pct = Math.min(100, Math.round((streak.thisWeekCount / streak.weeklyGoal) * 100));
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main>
+      <PageHeader title={greeting()} subtitle={prettyDate(todayISO())} />
+
+      <div className="space-y-5 px-4">
+        <div className="bg-card rounded-2xl border p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Flame className={streak.streakWeeks > 0 ? "size-5 text-orange-500" : "text-muted-foreground size-5"} />
+              <span className="text-2xl font-semibold">{streak.streakWeeks}</span>
+              <span className="text-muted-foreground text-sm">week{streak.streakWeeks === 1 ? "" : "s"} streak</span>
+            </div>
+            <span className="text-muted-foreground text-sm">
+              {streak.thisWeekCount}/{streak.weeklyGoal} this week
+            </span>
+          </div>
+          <Progress value={pct} className="mt-4" />
+          <p className="text-muted-foreground mt-2 text-xs">
+            {streak.goalMetThisWeek
+              ? "Goal hit for the week. Anything more is a bonus."
+              : `${Math.max(0, streak.weeklyGoal - streak.thisWeekCount)} more to hit this week's goal.`}
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-sm">Working out at</span>
+          <LocationToggle value={location} />
         </div>
-      </main>
-    </div>
+
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium">Suggested for today</h2>
+            <Link href="/routines" className="text-muted-foreground flex items-center text-sm">
+              All routines <ChevronRight className="size-4" />
+            </Link>
+          </div>
+          {suggested ? (
+            <RoutineCard card={suggested} />
+          ) : (
+            <p className="text-muted-foreground bg-card rounded-xl border p-4 text-sm">
+              No routines available here yet. Add equipment in Settings to unlock more.
+            </p>
+          )}
+        </section>
+
+        <Link href="/log" className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full")}>
+          <Plus className="size-4" /> Log something else
+        </Link>
+
+        <section className="space-y-2 pt-1">
+          <h2 className="text-sm font-medium">Recent activity</h2>
+          {recent.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nothing logged yet. Start with the suggestion above.</p>
+          ) : (
+            <ul className="divide-y rounded-xl border">
+              {recent.map((w) => (
+                <li key={w.id} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium">{w.routineName ?? w.type ?? "Workout"}</p>
+                    <p className="text-muted-foreground text-xs">{prettyDate(w.date)}</p>
+                  </div>
+                  {w.durationMinutes ? (
+                    <span className="text-muted-foreground text-sm">{w.durationMinutes} min</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </main>
   );
 }
