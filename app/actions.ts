@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { workouts, profile } from "@/lib/db/schema";
+import { workouts, profile, aiInsights } from "@/lib/db/schema";
+import { getWeeklyStats } from "@/lib/db/insights";
+import { generateText, AiUnavailableError } from "@/lib/ai";
+import { fitnessSummaryPrompt } from "@/lib/ai/prompts";
+import { todayISO } from "@/lib/format";
 
 export async function setLocation(location: "home" | "gym") {
   (await cookies()).set("vf_location", location, {
@@ -65,4 +69,34 @@ export async function updateWeeklyGoal(goal: number) {
   await db.update(profile).set({ weeklyGoalSessions: goal }).where(eq(profile.id, 1));
   revalidatePath("/");
   revalidatePath("/settings");
+}
+
+export async function updateKitchenPrefs(input: { householdSize: number; dislikes: string[] }) {
+  const db = await getDb();
+  await db
+    .update(profile)
+    .set({ householdSize: input.householdSize, dislikes: input.dislikes })
+    .where(eq(profile.id, 1));
+  revalidatePath("/settings");
+  revalidatePath("/kitchen");
+}
+
+export async function refreshFitnessInsight(): Promise<
+  { ok: true; text: string } | { ok: false; error: string }
+> {
+  try {
+    const stats = await getWeeklyStats();
+    const { system, prompt } = fitnessSummaryPrompt(stats);
+    const text = await generateText(prompt, system);
+    const db = await getDb();
+    await db
+      .insert(aiInsights)
+      .values({ kind: "weekly", date: todayISO(), text })
+      .onConflictDoUpdate({ target: [aiInsights.kind, aiInsights.date], set: { text } });
+    revalidatePath("/");
+    return { ok: true, text };
+  } catch (e) {
+    if (e instanceof AiUnavailableError) return { ok: false, error: "AI isn't set up yet. Add ANTHROPIC_API_KEY to enable it." };
+    return { ok: false, error: "Couldn't generate an insight. Try again." };
+  }
 }

@@ -7,6 +7,7 @@ import {
   timestamp,
   date,
   real,
+  jsonb,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -103,7 +104,51 @@ export const profile = pgTable("profile", {
       "cable",
       "machine",
     ]),
+  // Kitchen prefs
+  householdSize: integer("household_size").notNull().default(2),
+  dietStyle: text("diet_style").notNull().default("healthier, easy, high-protein"),
+  dislikes: text("dislikes").array().notNull().default([]),
 });
+
+// Kitchen: what's on hand, sorted by use-by to cut waste.
+export const pantryItems = pgTable("pantry_items", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category"),
+  location: text("location").notNull().default("fridge"), // fridge | freezer | pantry
+  quantity: text("quantity"),
+  useBy: date("use_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// A generated weekly plan, stored as JSON (days[] of meals).
+export const mealPlans = pgTable("meal_plans", {
+  id: serial("id").primaryKey(),
+  weekStart: date("week_start").notNull(),
+  plan: jsonb("plan").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const groceryItems = pgTable("grocery_items", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  quantity: text("quantity"),
+  checked: boolean("checked").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Cached AI text (e.g. the weekly fitness summary), one row per kind+date.
+export const aiInsights = pgTable(
+  "ai_insights",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").notNull(),
+    date: date("date").notNull(),
+    text: text("text").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ai_insights_kind_date_uniq").on(t.kind, t.date)],
+);
 
 export type Exercise = typeof exercises.$inferSelect;
 export type Routine = typeof routines.$inferSelect;
@@ -111,3 +156,7 @@ export type RoutineExercise = typeof routineExercises.$inferSelect;
 export type Workout = typeof workouts.$inferSelect;
 export type Metric = typeof metrics.$inferSelect;
 export type Profile = typeof profile.$inferSelect;
+export type PantryItem = typeof pantryItems.$inferSelect;
+export type MealPlanRow = typeof mealPlans.$inferSelect;
+export type GroceryItem = typeof groceryItems.$inferSelect;
+export type AiInsight = typeof aiInsights.$inferSelect;

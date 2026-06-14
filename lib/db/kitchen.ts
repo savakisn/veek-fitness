@@ -1,0 +1,27 @@
+import "server-only";
+import { desc, asc } from "drizzle-orm";
+import { getDb } from "./index";
+import { pantryItems, mealPlans, groceryItems } from "./schema";
+import type { PantryItem, GroceryItem } from "./schema";
+import type { WeeklyMealPlan } from "../ai/prompts";
+
+export async function getPantry(): Promise<PantryItem[]> {
+  const db = await getDb();
+  // use_by ASC puts soonest-expiring first; Postgres sorts NULLs last on ASC.
+  return db.select().from(pantryItems).orderBy(asc(pantryItems.useBy), desc(pantryItems.createdAt));
+}
+
+export async function getCurrentMealPlan(): Promise<WeeklyMealPlan | null> {
+  const db = await getDb();
+  const [row] = await db
+    .select()
+    .from(mealPlans)
+    .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+    .limit(1);
+  return row ? (row.plan as WeeklyMealPlan) : null;
+}
+
+export async function getGrocery(): Promise<GroceryItem[]> {
+  const db = await getDb();
+  return db.select().from(groceryItems).orderBy(asc(groceryItems.checked), desc(groceryItems.createdAt));
+}

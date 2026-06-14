@@ -4,10 +4,64 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { EQUIPMENT } from "@/lib/equipment";
-import { updateEquipment, updateWeeklyGoal } from "@/app/actions";
+import { updateEquipment, updateWeeklyGoal, updateKitchenPrefs } from "@/app/actions";
 import type { Profile } from "@/lib/db/schema";
+
+function KitchenPrefs({ profile }: { profile: Profile }) {
+  const [household, setHousehold] = useState(profile.householdSize);
+  const [dislikes, setDislikes] = useState(profile.dislikes.join(", "));
+  const [, start] = useTransition();
+
+  function save(nextHousehold: number, nextDislikes: string) {
+    const list = nextDislikes
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    start(async () => {
+      await updateKitchenPrefs({ householdSize: nextHousehold, dislikes: list });
+    });
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <Label>Cooking for</Label>
+        <div className="mt-2 grid grid-cols-5 gap-1.5">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => {
+                setHousehold(n);
+                save(n, dislikes);
+              }}
+              className={cn(
+                "rounded-lg border py-2 text-sm tabular-nums",
+                household === n ? "border-primary bg-primary/10 font-medium" : "text-muted-foreground",
+              )}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="dislikes">Foods to avoid</Label>
+        <p className="text-muted-foreground mt-0.5 mb-2 text-sm">Comma separated. The meal planner skips these.</p>
+        <Input
+          id="dislikes"
+          value={dislikes}
+          onChange={(e) => setDislikes(e.target.value)}
+          onBlur={() => save(household, dislikes)}
+          placeholder="e.g. mushrooms, cilantro"
+        />
+      </div>
+    </section>
+  );
+}
 
 function EquipmentList({
   location,
@@ -90,6 +144,13 @@ export function SettingsForm({ profile }: { profile: Profile }) {
         <p className="text-muted-foreground text-sm">What the gym has. Used when you switch to the Gym track.</p>
         <EquipmentList location="gym" owned={profile.gymEquipment} />
       </section>
+
+      <div>
+        <Label className="text-base">Kitchen</Label>
+        <div className="mt-3">
+          <KitchenPrefs profile={profile} />
+        </div>
+      </div>
     </div>
   );
 }

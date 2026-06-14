@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Flame, Plus, ChevronRight } from "lucide-react";
 import { getLocation } from "@/lib/location";
 import { getStreak, getSuggestedRoutine, getRecentWorkouts } from "@/lib/db/queries";
+import { getLatestInsight } from "@/lib/db/insights";
 import { PageHeader } from "@/components/page-header";
 import { LocationToggle } from "@/components/location-toggle";
 import { RoutineCard } from "@/components/routine-card";
+import { InsightCard } from "@/components/insight-card";
 import { Progress } from "@/components/ui/progress";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,10 +21,11 @@ function greeting(): string {
 
 export default async function TodayPage() {
   const location = await getLocation();
-  const [streak, suggested, recent] = await Promise.all([
+  const [streak, suggested, recent, insight] = await Promise.all([
     getStreak(),
     getSuggestedRoutine(location),
     getRecentWorkouts(5),
+    getLatestInsight("weekly"),
   ]);
 
   const pct = Math.min(100, Math.round((streak.thisWeekCount / streak.weeklyGoal) * 100));
@@ -50,6 +53,8 @@ export default async function TodayPage() {
               : `${Math.max(0, streak.weeklyGoal - streak.thisWeekCount)} more to hit this week's goal.`}
           </p>
         </div>
+
+        <InsightCard initialText={insight?.text ?? null} />
 
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground text-sm">Working out at</span>

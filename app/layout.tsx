@@ -1,11 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Lato } from "next/font/google";
 import "./globals.css";
 import { BottomNav } from "@/components/bottom-nav";
 import { Pwa } from "@/components/pwa";
 import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+// Lato wired as --font-sans (the variable globals.css expects). Fixes the serif
+// fallback bug and matches the company typeface.
+const lato = Lato({
+  variable: "--font-sans",
+  subsets: ["latin"],
+  weight: ["300", "400", "700", "900"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Veek Fitness",
@@ -24,7 +31,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
+    <html lang="en" className={`${lato.variable} dark h-full antialiased`} style={{ colorScheme: "dark" }}>
       <body className="bg-background min-h-full">
         <div className="mx-auto min-h-dvh max-w-md pb-20">{children}</div>
         <BottomNav />

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Dumbbell, CalendarDays, Settings } from "lucide-react";
+import { Home, Dumbbell, UtensilsCrossed, CalendarDays, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/", label: "Today", icon: Home },
   { href: "/routines", label: "Routines", icon: Dumbbell },
+  { href: "/kitchen", label: "Kitchen", icon: UtensilsCrossed },
   { href: "/history", label: "History", icon: CalendarDays },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -27,7 +28,7 @@ export function BottomNav() {
               href={href}
               className={cn(
                 "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs",
-                active ? "text-foreground" : "text-muted-foreground",
+                active ? "text-primary" : "text-muted-foreground",
               )}
             >
               <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />

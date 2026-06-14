@@ -45,16 +45,22 @@ http://localhost:3000. With no `PASSCODE` set, there's no login gate locally.
 
 ## Layout
 
-- `app/` — pages: Today, Routines, routine runner, Log, History, Settings, Login
-- `lib/db/` — schema, queries, seed library, the PGlite/Postgres client
+- `app/` — pages: Today, Routines, routine runner, Log, History, Kitchen, Settings, Login
+- `lib/db/` — schema, queries, kitchen, insights, seed library, the PGlite/Postgres client
 - `lib/streaks.ts` — weekly-goal streak math
 - `lib/equipment.ts` — gear list + Home/Gym availability logic
-- `lib/ai/` — AI summary seam (Gemini provider ready, inert until wired)
+- `lib/ai/` — Claude (Haiku) seam: weekly fitness summary + Kitchen meal planning. Needs `ANTHROPIC_API_KEY`.
 - `lib/garmin/` — Garmin sync seam (stub, fast-follow)
 - `public/sw.js`, `lib/offline-queue.ts` — offline app shell + log-and-sync
 
+## AI features
+
+The Today "Coach" card and the whole Kitchen (AI weekly meal plan, fridge-to-recipe)
+run on the Claude API via `lib/ai`. Set `ANTHROPIC_API_KEY` (locally in `.env`, and in
+Vercel env for prod). Without it, those features show a friendly "AI isn't set up"
+message instead of failing.
+
 ## What's next (fast-follow, all built on the existing core)
 
-Flexible analytics dashboard, AI weekly/monthly summaries (free Gemini), body
-metrics, reminders, deeper Garmin sync into the metrics store, then the Kitchen
-(meal plan, fridge-to-recipe, waste tracking, grocery list).
+Flexible analytics dashboard, body metrics, reminders/push, the modular
+`HealthProvider` integration (Garmin now, Fitbit later) into the metrics store.

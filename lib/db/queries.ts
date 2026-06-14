@@ -20,6 +20,9 @@ export async function getProfile(): Promise<Profile> {
       weeklyGoalSessions: 3,
       homeEquipment: ["mat"],
       gymEquipment: ["mat", "dumbbells", "barbell", "bench", "squat_rack", "pullup_bar", "bands", "kettlebell", "cable", "machine"],
+      householdSize: 2,
+      dietStyle: "healthier, easy, high-protein",
+      dislikes: [],
     }
   );
 }
