@@ -35,15 +35,25 @@ function dislikeLine(dislikes: string[]): string {
   return dislikes.length ? `Avoid entirely: ${dislikes.join(", ")}.` : "No hard dislikes.";
 }
 
+function tasteLines(liked: string[], disliked: string[]): string[] {
+  const out: string[] = [];
+  if (liked.length) out.push(`Meals he's liked before (favor these and similar styles): ${liked.join(", ")}.`);
+  if (disliked.length) out.push(`Meals he disliked (do NOT suggest these or close variations): ${disliked.join(", ")}.`);
+  return out;
+}
+
 export function mealPlanPrompt(opts: {
   household: number;
   dietStyle: string;
   dislikes: string[];
   pantry: string[];
+  liked: string[];
+  disliked: string[];
 }): { system: string; prompt: string } {
   const prompt = [
     `Plan 7 easy, high-protein dinners for ${opts.household} people. Diet leaning: ${opts.dietStyle}.`,
     dislikeLine(opts.dislikes),
+    ...tasteLines(opts.liked, opts.disliked),
     opts.pantry.length ? `Lean on what's already on hand where it helps: ${opts.pantry.join(", ")}.` : "",
     "",
     "Return JSON exactly like:",
@@ -59,11 +69,14 @@ export function fridgePrompt(opts: {
   household: number;
   dislikes: string[];
   pantry: string[];
+  liked: string[];
+  disliked: string[];
 }): { system: string; prompt: string } {
   const prompt = [
     `Here's what's on hand: ${opts.pantry.join(", ") || "not much"}.`,
     `Suggest up to 4 easy, high-protein meals for ${opts.household} that can mostly be made from these, noting the few extra items needed.`,
     dislikeLine(opts.dislikes),
+    ...tasteLines(opts.liked, opts.disliked),
     "",
     "Return JSON exactly like:",
     `{"recipes":[{"name":"","blurb":"one sentence","proteinGrams":40,"prepMinutes":20,"usesFromPantry":["eggs"],"alsoNeed":["tortillas"],"steps":["short step"]}]}`,

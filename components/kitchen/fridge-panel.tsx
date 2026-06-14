@@ -5,9 +5,16 @@ import { toast } from "sonner";
 import { ChefHat, Clock, Beef } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fridgeToRecipe } from "@/app/kitchen/actions";
+import { MealRating, type Sentiment } from "./meal-rating";
 import type { RecipeSuggestion } from "@/lib/ai/prompts";
 
-export function FridgePanel({ hasPantry }: { hasPantry: boolean }) {
+export function FridgePanel({
+  hasPantry,
+  feedback,
+}: {
+  hasPantry: boolean;
+  feedback: Record<string, Sentiment>;
+}) {
   const [recipes, setRecipes] = useState<RecipeSuggestion[] | null>(null);
   const [pending, start] = useTransition();
 
@@ -38,7 +45,10 @@ export function FridgePanel({ hasPantry }: { hasPantry: boolean }) {
       <div className="space-y-3">
         {recipes?.map((r, i) => (
           <div key={i} className="bg-card rounded-xl border p-4">
-            <h3 className="font-medium">{r.name}</h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-medium">{r.name}</h3>
+              <MealRating name={r.name} current={feedback[r.name] ?? null} />
+            </div>
             {r.blurb && <p className="text-muted-foreground mt-0.5 text-sm">{r.blurb}</p>}
             <div className="text-muted-foreground mt-2 flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1">

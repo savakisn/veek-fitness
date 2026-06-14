@@ -137,6 +137,18 @@ export const groceryItems = pgTable("grocery_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Remembered taste: thumbs up/down on meals so future plans lean toward what he likes.
+export const mealFeedback = pgTable(
+  "meal_feedback",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    sentiment: text("sentiment").notNull(), // like | dislike
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("meal_feedback_name_uniq").on(t.name)],
+);
+
 // Cached AI text (e.g. the weekly fitness summary), one row per kind+date.
 export const aiInsights = pgTable(
   "ai_insights",
@@ -160,3 +172,4 @@ export type PantryItem = typeof pantryItems.$inferSelect;
 export type MealPlanRow = typeof mealPlans.$inferSelect;
 export type GroceryItem = typeof groceryItems.$inferSelect;
 export type AiInsight = typeof aiInsights.$inferSelect;
+export type MealFeedback = typeof mealFeedback.$inferSelect;

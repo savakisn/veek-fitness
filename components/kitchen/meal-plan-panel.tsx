@@ -6,9 +6,16 @@ import { toast } from "sonner";
 import { Sparkles, Clock, Beef } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMealPlan } from "@/app/kitchen/actions";
+import { MealRating, type Sentiment } from "./meal-rating";
 import type { WeeklyMealPlan } from "@/lib/ai/prompts";
 
-export function MealPlanPanel({ plan }: { plan: WeeklyMealPlan | null }) {
+export function MealPlanPanel({
+  plan,
+  feedback,
+}: {
+  plan: WeeklyMealPlan | null;
+  feedback: Record<string, Sentiment>;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -48,7 +55,10 @@ export function MealPlanPanel({ plan }: { plan: WeeklyMealPlan | null }) {
                   </span>
                 </span>
               </div>
-              <h3 className="mt-1 font-medium">{d.meal.name}</h3>
+              <div className="mt-1 flex items-start justify-between gap-2">
+                <h3 className="font-medium">{d.meal.name}</h3>
+                <MealRating name={d.meal.name} current={feedback[d.meal.name] ?? null} />
+              </div>
               {d.meal.blurb && <p className="text-muted-foreground mt-0.5 text-sm">{d.meal.blurb}</p>}
               {d.meal.steps?.length > 0 && (
                 <ol className="text-muted-foreground mt-2 list-decimal space-y-0.5 pl-4 text-sm">

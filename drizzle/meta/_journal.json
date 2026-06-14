@@ -15,6 +15,13 @@
       "when": 1781414683361,
       "tag": "0001_pale_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781451065174,
+      "tag": "0002_perpetual_sway",
+      "breakpoints": true
     }
   ]
 }

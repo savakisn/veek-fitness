@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { startOfWeek } from "date-fns";
 import { getDb } from "@/lib/db";
-import { pantryItems, mealPlans, groceryItems } from "@/lib/db/schema";
+import { pantryItems, mealPlans, groceryItems, mealFeedback } from "@/lib/db/schema";
 import { getProfile } from "@/lib/db/queries";
-import { getPantry, getCurrentMealPlan } from "@/lib/db/kitchen";
+import { getPantry, getCurrentMealPlan, getMealFeedback, splitFeedback } from "@/lib/db/kitchen";
 import { generateJSON } from "@/lib/ai";
 import { AiUnavailableError } from "@/lib/ai";
 import { mealPlanPrompt, fridgePrompt } from "@/lib/ai/prompts";
@@ -43,14 +43,32 @@ export async function deletePantryItem(id: number) {
 }
 
 // --- Meal plan (AI) ---
+export async function rateMeal(name: string, sentiment: "like" | "dislike" | null) {
+  const db = await getDb();
+  const n = name.trim();
+  if (!n) return;
+  if (sentiment === null) {
+    await db.delete(mealFeedback).where(eq(mealFeedback.name, n));
+  } else {
+    await db
+      .insert(mealFeedback)
+      .values({ name: n, sentiment })
+      .onConflictDoUpdate({ target: mealFeedback.name, set: { sentiment } });
+  }
+  revalidatePath("/kitchen");
+}
+
 export async function generateMealPlan(): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const [p, pantry] = await Promise.all([getProfile(), getPantry()]);
+    const [p, pantry, feedback] = await Promise.all([getProfile(), getPantry(), getMealFeedback()]);
+    const taste = splitFeedback(feedback);
     const { system, prompt } = mealPlanPrompt({
       household: p.householdSize,
       dietStyle: p.dietStyle,
       dislikes: p.dislikes,
       pantry: pantry.map((i) => i.name),
+      liked: taste.liked,
+      disliked: taste.disliked,
     });
     const plan = await generateJSON<WeeklyMealPlan>(prompt, system);
     const db = await getDb();
@@ -68,12 +86,15 @@ export async function fridgeToRecipe(): Promise<
   { ok: true; recipes: RecipeSuggestion[] } | { ok: false; error: string }
 > {
   try {
-    const [p, pantry] = await Promise.all([getProfile(), getPantry()]);
+    const [p, pantry, feedback] = await Promise.all([getProfile(), getPantry(), getMealFeedback()]);
     if (pantry.length === 0) return { ok: false, error: "Add a few pantry items first so it has something to work with." };
+    const taste = splitFeedback(feedback);
     const { system, prompt } = fridgePrompt({
       household: p.householdSize,
       dislikes: p.dislikes,
       pantry: pantry.map((i) => i.name),
+      liked: taste.liked,
+      disliked: taste.disliked,
     });
     const result = await generateJSON<FridgeResult>(prompt, system);
     return { ok: true, recipes: result.recipes ?? [] };
