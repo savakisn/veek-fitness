@@ -22,48 +22,72 @@ async function latest(db: DB, userId: number, type: string): Promise<number | nu
   return row?.value ?? null;
 }
 
+export type FitnessAgeBreakdown = {
+  age: number;
+  hrRest: number;
+  hrMax: number;
+  hrMaxEstimated: boolean;
+  vo2max: number;
+  baseAge: number; // from VO2max alone
+  bmi: number | null;
+  bmiAdjust: number;
+  fitnessAge: number;
+};
+
 // Live, no-lab fitness age. VO2max from the Heart Rate Ratio method
 // (Uth-Sorensen 2004: VO2max ~= 15 * HRmax/HRrest), mapped to male population
 // norms (median VO2max ~= 56 - 0.4*age), then nudged by BMI. Resting HR is
 // already baked into VO2max, so we don't double-count it.
-export async function computeFitnessAge(db: DB, userId: number): Promise<number | null> {
+export async function fitnessAgeBreakdown(db: DB, userId: number): Promise<FitnessAgeBreakdown | null> {
   const hrRest = await latest(db, userId, "resting_hr");
   if (!hrRest || hrRest <= 0) return null;
 
   const age = ageNow();
-  // Best HRmax we have: the highest activity max HR; else age-predicted (Nes).
   const acts = await db
     .select({ detail: workouts.detail })
     .from(workouts)
     .where(and(eq(workouts.userId, userId), eq(workouts.source, "garmin")));
   let hrMax = 0;
   for (const a of acts) if (a.detail?.maxHr && a.detail.maxHr > hrMax) hrMax = a.detail.maxHr;
-  if (hrMax < 120) hrMax = Math.round(211 - 0.64 * age);
+  const hrMaxEstimated = hrMax < 120;
+  if (hrMaxEstimated) hrMax = Math.round(211 - 0.64 * age);
 
-  const vo2 = 15 * (hrMax / hrRest);
-  let fa = (56 - vo2) / 0.4; // invert the male norm line
+  const vo2max = 15 * (hrMax / hrRest);
+  const baseAge = (56 - vo2max) / 0.4;
 
+  let bmi: number | null = null;
+  let bmiAdjust = 0;
   const weight = await latest(db, userId, "weight"); // lbs
   if (weight && weight > 0) {
-    const bmi = (703 * weight) / (HEIGHT_IN * HEIGHT_IN);
-    if (bmi > 25) fa += (bmi - 25) * 0.6;
-    else if (bmi < 18.5) fa += (18.5 - bmi) * 0.6;
+    bmi = (703 * weight) / (HEIGHT_IN * HEIGHT_IN);
+    if (bmi > 25) bmiAdjust = (bmi - 25) * 0.6;
+    else if (bmi < 18.5) bmiAdjust = (18.5 - bmi) * 0.6;
   }
 
-  fa = Math.max(16, Math.min(80, fa));
-  return Math.round(fa);
+  const fitnessAge = Math.max(16, Math.min(80, Math.round(baseAge + bmiAdjust)));
+  return {
+    age: Math.round(age * 10) / 10,
+    hrRest: Math.round(hrRest),
+    hrMax: Math.round(hrMax),
+    hrMaxEstimated,
+    vo2max: Math.round(vo2max * 10) / 10,
+    baseAge: Math.round(baseAge),
+    bmi: bmi == null ? null : Math.round(bmi * 10) / 10,
+    bmiAdjust: Math.round(bmiAdjust * 10) / 10,
+    fitnessAge,
+  };
 }
 
 export async function upsertFitnessAge(db: DB, userId: number): Promise<boolean> {
-  const fa = await computeFitnessAge(db, userId);
-  if (fa == null) return false;
+  const b = await fitnessAgeBreakdown(db, userId);
+  if (!b) return false;
   const today = new Date().toISOString().slice(0, 10);
   await db
     .insert(metrics)
-    .values({ userId, date: today, metricType: "fitness_age", value: fa, source: "derived" })
+    .values({ userId, date: today, metricType: "fitness_age", value: b.fitnessAge, source: "derived" })
     .onConflictDoUpdate({
       target: [metrics.userId, metrics.date, metrics.metricType, metrics.source],
-      set: { value: fa },
+      set: { value: b.fitnessAge },
     });
   return true;
 }

@@ -61,16 +61,17 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {d.hrSamples && d.hrSamples.length > 1 && (
+      {d.speedSamples && d.speedSamples.length > 1 ? (
         <div className="mt-4">
-          <HrChart samples={d.hrSamples} />
+          <SessionTrimmer id={w.id} speedSamples={d.speedSamples} hrSamples={d.hrSamples} trim={d.trim} />
         </div>
-      )}
-
-      {d.speedSamples && d.speedSamples.length > 1 && (
-        <div className="mt-4">
-          <SessionTrimmer id={w.id} speedSamples={d.speedSamples} trim={d.trim} />
-        </div>
+      ) : (
+        d.hrSamples &&
+        d.hrSamples.length > 1 && (
+          <div className="mt-4">
+            <HrChart samples={d.hrSamples} />
+          </div>
+        )
       )}
 
       {w.notes && <p className="text-muted-foreground mt-4 text-sm">{w.notes}</p>}

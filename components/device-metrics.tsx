@@ -34,7 +34,7 @@ function Ring({ value, goal }: { value: number; goal: number }) {
   );
 }
 
-function Stat({
+function Tile({
   href,
   icon: Icon,
   label,
@@ -48,15 +48,18 @@ function Stat({
   sub?: string;
 }) {
   return (
-    <Link href={href} className="flex items-center gap-2">
-      <Icon className="text-primary size-4 shrink-0" />
-      <div>
-        <p className="text-sm font-medium tabular-nums">
-          {value}
-          {sub ? <span className="text-muted-foreground ml-1 text-xs font-normal">{sub}</span> : null}
-        </p>
-        <p className="text-muted-foreground text-xs">{label}</p>
+    <Link
+      href={href}
+      className="bg-background hover:bg-accent/40 flex flex-col gap-1 rounded-xl border p-3 transition-colors active:scale-[0.98]"
+    >
+      <div className="text-muted-foreground flex items-center gap-1.5">
+        <Icon className="text-primary size-3.5 shrink-0" />
+        <span className="text-xs">{label}</span>
       </div>
+      <p className="text-lg font-semibold tabular-nums leading-none">
+        {value}
+        {sub ? <span className="text-muted-foreground ml-1 text-xs font-normal">{sub}</span> : null}
+      </p>
     </Link>
   );
 }
@@ -102,9 +105,9 @@ export function DeviceMetrics({
       )}
 
       {hasStats && (
-        <div className="flex flex-wrap gap-x-6 gap-y-3">
+        <div className="grid grid-cols-2 gap-2">
           {metrics.body_battery ? (
-            <Stat
+            <Tile
               href="/metric/body_battery"
               icon={BatteryMedium}
               label="Body Battery"
@@ -116,11 +119,11 @@ export function DeviceMetrics({
               }
             />
           ) : null}
-          {metrics.resting_hr ? <Stat href="/metric/resting_hr" icon={Heart} label="Resting HR" value={String(Math.round(metrics.resting_hr))} /> : null}
-          {metrics.sleep_hours ? <Stat href="/metric/sleep_hours" icon={Moon} label="Sleep" value={`${metrics.sleep_hours}h`} /> : null}
-          {metrics.sleep_score ? <Stat href="/metric/sleep_score" icon={Star} label="Sleep score" value={String(Math.round(metrics.sleep_score))} /> : null}
-          {metrics.weight ? <Stat href="/metric/weight" icon={Scale} label="Weight" value={`${metrics.weight} lb`} /> : null}
-          {metrics.fitness_age ? <Stat href="/metric/fitness_age" icon={Sparkles} label="Fitness age" value={`${Math.round(metrics.fitness_age)} yrs`} /> : null}
+          {metrics.resting_hr ? <Tile href="/metric/resting_hr" icon={Heart} label="Resting HR" value={String(Math.round(metrics.resting_hr))} sub="bpm" /> : null}
+          {metrics.sleep_hours ? <Tile href="/metric/sleep_hours" icon={Moon} label="Sleep" value={`${metrics.sleep_hours}h`} /> : null}
+          {metrics.sleep_score ? <Tile href="/metric/sleep_score" icon={Star} label="Sleep score" value={String(Math.round(metrics.sleep_score))} /> : null}
+          {metrics.weight ? <Tile href="/metric/weight" icon={Scale} label="Weight" value={`${metrics.weight}`} sub="lb" /> : null}
+          {metrics.fitness_age ? <Tile href="/metric/fitness_age" icon={Sparkles} label="Fitness age" value={`${Math.round(metrics.fitness_age)}`} sub="yrs" /> : null}
         </div>
       )}
     </div>

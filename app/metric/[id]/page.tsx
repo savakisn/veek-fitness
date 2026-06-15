@@ -2,8 +2,11 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import { getMetricSeries } from "@/lib/db/insights";
+import { fitnessAgeBreakdown } from "@/lib/fitness-age";
 import { MetricChart } from "@/components/metric-chart";
+import { FitnessAgeBreakdownCard } from "@/components/fitness-age-breakdown";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +31,7 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
 
   const user = await getCurrentUser();
   const series = await getMetricSeries(user.id, id, 30);
+  const breakdown = id === "fitness_age" ? await fitnessAgeBreakdown(await getDb(), user.id) : null;
   const fmt = (v: number) => `${v.toFixed(meta.decimals)}${meta.unit}`;
   const latest = series.length ? series[series.length - 1] : null;
 
@@ -46,6 +50,12 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
           </p>
         )}
       </div>
+
+      {breakdown && (
+        <div className="mt-5">
+          <FitnessAgeBreakdownCard b={breakdown} />
+        </div>
+      )}
 
       {series.length === 0 ? (
         <p className="text-muted-foreground mt-6 text-sm">No data yet. It fills in as your device syncs.</p>
