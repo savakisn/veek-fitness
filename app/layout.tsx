@@ -40,7 +40,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`${lato.variable} dark h-full antialiased`} style={{ colorScheme: "dark" }}>
       <body className="bg-background min-h-full">
-        <div className="mx-auto min-h-dvh max-w-md pb-20">{children}</div>
+        <div className="mx-auto min-h-dvh max-w-md pb-[calc(5rem+env(safe-area-inset-bottom))]">{children}</div>
         <BottomNav />
         <Pwa />
         <Toaster position="top-center" />

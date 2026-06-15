@@ -32,7 +32,7 @@ export function BottomNav() {
   const activeHref = pending?.href ?? pathname;
 
   return (
-    <nav className="bg-background/90 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur">
+    <nav className="bg-background/90 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur">
       <div className="mx-auto flex max-w-md items-stretch justify-around">
         {ITEMS.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? activeHref === "/" : activeHref.startsWith(href);
