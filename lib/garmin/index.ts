@@ -172,24 +172,31 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   } catch {
     /* sleep unavailable */
   }
-  try {
-    const lbs = (await client.getDailyWeightInPounds(day)) as unknown;
-    if (typeof lbs === "number" && lbs > 0) {
-      await upsertMetric(db, userId, dayStr, "weight", Math.round(lbs * 10) / 10);
-      metricCount++;
+  // Weight: use the most recent weigh-in within the last few days (he logs it manually).
+  for (let i = 0; i < 4; i++) {
+    const dd = new Date(Date.now() - i * 86400000);
+    try {
+      const lbs = (await client.getDailyWeightInPounds(dd)) as unknown;
+      if (typeof lbs === "number" && lbs > 0) {
+        await upsertMetric(db, userId, dd.toISOString().slice(0, 10), "weight", Math.round(lbs * 10) / 10);
+        metricCount++;
+        break;
+      }
+    } catch {
+      /* weight unavailable */
     }
-  } catch {
-    /* weight unavailable */
   }
+  // Body Battery is a "right now" value — read today's most recent.
   try {
+    const today = new Date().toISOString().slice(0, 10);
     const profile = (await client.getUserProfile()) as unknown as { displayName?: string };
     if (profile?.displayName) {
       const summary = await client.get<{ bodyBatteryMostRecentValue?: number; bodyBatteryHighestValue?: number }>(
-        `https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${dayStr}`,
+        `https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${today}`,
       );
       const bb = summary?.bodyBatteryMostRecentValue ?? summary?.bodyBatteryHighestValue;
       if (typeof bb === "number" && bb > 0) {
-        await upsertMetric(db, userId, dayStr, "body_battery", bb);
+        await upsertMetric(db, userId, today, "body_battery", bb);
         metricCount++;
       }
     }
