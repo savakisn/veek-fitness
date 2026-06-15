@@ -39,7 +39,7 @@ export default async function TodayPage() {
       <PageHeader title={`${greeting()}, ${user.name}`} subtitle={prettyDate(todayISO())} />
 
       <div className="space-y-5 px-4">
-        <TrainingStatusCard status={training} />
+        {recent.length > 0 && <TrainingStatusCard status={training} />}
 
         <DeviceMetrics metrics={deviceMetrics} stepsSeries={stepsSeries} />
         <LiveGarmin enabled={Object.keys(deviceMetrics).length > 0} />
