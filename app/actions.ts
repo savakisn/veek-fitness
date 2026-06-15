@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { workouts, users, household, aiInsights } from "@/lib/db/schema";
+import { workouts, users, household, aiInsights, metrics } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getRoutineCards, getRecentWorkouts } from "@/lib/db/queries";
 import { getWeeklyStats } from "@/lib/db/insights";
@@ -94,6 +94,23 @@ export async function updateWorkoutTrim(id: number, startSec: number, endSec: nu
   revalidatePath(`/workout/${id}`);
   revalidatePath("/history");
   revalidatePath("/");
+}
+
+export async function logWeight(lbs: number, date?: string) {
+  const db = await getDb();
+  const user = await getCurrentUser();
+  const value = Math.round(lbs * 10) / 10;
+  if (!(value > 0) || value > 1000) return;
+  const day = date ?? todayISO();
+  await db
+    .insert(metrics)
+    .values({ userId: user.id, date: day, metricType: "weight", value, source: "manual" })
+    .onConflictDoUpdate({
+      target: [metrics.userId, metrics.date, metrics.metricType, metrics.source],
+      set: { value },
+    });
+  revalidatePath("/");
+  revalidatePath("/metric/weight");
 }
 
 export async function deleteWorkout(id: number) {

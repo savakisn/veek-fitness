@@ -7,6 +7,7 @@ import { getMetricSeries } from "@/lib/db/insights";
 import { fitnessAgeBreakdown } from "@/lib/fitness-age";
 import { MetricChart } from "@/components/metric-chart";
 import { FitnessAgeBreakdownCard } from "@/components/fitness-age-breakdown";
+import { LogWeight } from "@/components/log-weight";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,12 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
           </p>
         )}
       </div>
+
+      {id === "weight" && (
+        <div className="mt-5">
+          <LogWeight />
+        </div>
+      )}
 
       {breakdown && (
         <div className="mt-5">

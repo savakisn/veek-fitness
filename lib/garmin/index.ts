@@ -1,6 +1,6 @@
 import "server-only";
 import { GarminConnect } from "garmin-connect";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, and } from "drizzle-orm";
 import { getDb } from "../db";
 import type { DB } from "../db";
 import { users, workouts, metrics, garminAuth } from "../db/schema";
@@ -297,8 +297,14 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   } catch {
     /* sleep unavailable */
   }
-  // Weight history via the range endpoint (covers older weigh-ins, not just recent days).
+  // Weight: Garmin is now a one-time history backfill only. Manual entries are
+  // the source of truth, so only fill dates that have no weight reading yet.
   try {
+    const existing = await db
+      .select({ date: metrics.date })
+      .from(metrics)
+      .where(and(eq(metrics.userId, userId), eq(metrics.metricType, "weight")));
+    const haveWeight = new Set(existing.map((e) => e.date));
     const start = new Date(Date.now() - 220 * 86400000).toISOString().slice(0, 10);
     const end = new Date().toISOString().slice(0, 10);
     const wr = await client.get<{
@@ -310,8 +316,9 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     }>(`https://connectapi.garmin.com/weight-service/weight/range/${start}/${end}?includeAll=true`);
     for (const s of wr?.dailyWeightSummaries ?? []) {
       const grams = s.latestWeight?.weight ?? s.allWeightMetrics?.[0]?.weight;
-      if (typeof grams === "number" && grams > 0 && s.summaryDate) {
-        await upsertMetric(db, userId, s.summaryDate.slice(0, 10), "weight", Math.round((grams / 453.592) * 10) / 10);
+      const day = s.summaryDate?.slice(0, 10);
+      if (typeof grams === "number" && grams > 0 && day && !haveWeight.has(day)) {
+        await upsertMetric(db, userId, day, "weight", Math.round((grams / 453.592) * 10) / 10);
         metricCount++;
       }
     }
