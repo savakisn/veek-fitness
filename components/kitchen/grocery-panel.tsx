@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ListPlus, Share2, Trash2, Plus } from "lucide-react";
+import { ListPlus, Share2, Trash2, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,31 @@ import type { GroceryItem } from "@/lib/db/schema";
 export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan: boolean }) {
   const router = useRouter();
   const [adding, setAdding] = useState("");
+  const [animating, setAnimating] = useState<Set<number>>(new Set());
   const [pending, start] = useTransition();
+
+  // On check, play the checkmark first, then persist + reorder to the bottom.
+  function toggle(item: GroceryItem) {
+    if (item.checked) {
+      start(async () => {
+        await toggleGrocery(item.id, false);
+        router.refresh();
+      });
+      return;
+    }
+    setAnimating((prev) => new Set(prev).add(item.id));
+    setTimeout(() => {
+      start(async () => {
+        await toggleGrocery(item.id, true);
+        router.refresh();
+        setAnimating((prev) => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
+        });
+      });
+    }, 450);
+  }
 
   function build() {
     start(async () => {
@@ -79,23 +103,30 @@ export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan
         <p className="text-muted-foreground text-sm">Your list is empty.</p>
       ) : (
         <ul className="divide-y rounded-xl border">
-          {items.map((i) => (
-            <li key={i.id} className="flex items-center gap-3 px-4 py-2.5">
-              <input
-                type="checkbox"
-                checked={i.checked}
-                onChange={(e) => start(async () => {
-                  await toggleGrocery(i.id, e.target.checked);
-                  router.refresh();
-                })}
-                className="accent-primary size-4"
-              />
-              <span className={cn("flex-1 text-sm", i.checked && "text-muted-foreground line-through")}>
-                {i.name}
-                {i.quantity ? <span className="text-muted-foreground"> · {i.quantity}</span> : null}
-              </span>
-            </li>
-          ))}
+          {items.map((i) => {
+            const done = i.checked || animating.has(i.id);
+            return (
+              <li key={i.id} className="flex items-center gap-3 px-4 py-2.5 transition-opacity">
+                <button
+                  type="button"
+                  aria-label={done ? "Uncheck" : "Check off"}
+                  onClick={() => toggle(i)}
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                    done ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
+                  )}
+                >
+                  <Check
+                    className={cn("size-3.5 transition-transform duration-200", done ? "scale-100" : "scale-0")}
+                  />
+                </button>
+                <span className={cn("flex-1 text-sm transition-colors", done && "text-muted-foreground line-through")}>
+                  {i.name}
+                  {i.quantity ? <span className="text-muted-foreground"> · {i.quantity}</span> : null}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
 
