@@ -1,9 +1,22 @@
 import "server-only";
 import { desc, gte, eq, and } from "drizzle-orm";
 import { getDb } from "./index";
-import { workouts, routines, aiInsights } from "./schema";
+import { workouts, routines, aiInsights, metrics } from "./schema";
 import type { AiInsight, User } from "./schema";
 import { getStreak, getRecentWorkouts } from "./queries";
+
+// Latest value per metric type for a user (steps, sleep_hours, resting_hr, ...).
+export async function getLatestMetrics(userId: number): Promise<Record<string, number>> {
+  const db = await getDb();
+  const rows = await db
+    .select({ metricType: metrics.metricType, value: metrics.value })
+    .from(metrics)
+    .where(eq(metrics.userId, userId))
+    .orderBy(desc(metrics.date));
+  const out: Record<string, number> = {};
+  for (const r of rows) if (!(r.metricType in out)) out[r.metricType] = r.value;
+  return out;
+}
 
 export type FitnessStats = {
   weekSessions: number;

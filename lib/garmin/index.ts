@@ -66,26 +66,45 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     activities++;
   }
 
-  // Daily numbers for today, best-effort — never let these break the activity sync.
+  // Daily numbers for yesterday (today is usually not fully synced yet).
+  // Best-effort and independent — never let these break the activity sync.
   let metricCount = 0;
-  const today = new Date().toISOString().slice(0, 10);
+  const day = new Date(Date.now() - 86400000);
+  const dayStr = day.toISOString().slice(0, 10);
   try {
-    const steps = (await client.getSteps(new Date())) as unknown;
-    if (typeof steps === "number") {
-      await upsertMetric(db, userId, today, "steps", steps);
+    const steps = (await client.getSteps(day)) as unknown;
+    if (typeof steps === "number" && steps > 0) {
+      await upsertMetric(db, userId, dayStr, "steps", steps);
       metricCount++;
     }
   } catch {
     /* steps unavailable */
   }
   try {
-    const hr = (await client.getHeartRate(new Date())) as unknown as { restingHeartRate?: number };
-    if (typeof hr?.restingHeartRate === "number") {
-      await upsertMetric(db, userId, today, "resting_hr", hr.restingHeartRate);
+    const hr = (await client.getHeartRate(day)) as unknown as { restingHeartRate?: number };
+    if (typeof hr?.restingHeartRate === "number" && hr.restingHeartRate > 0) {
+      await upsertMetric(db, userId, dayStr, "resting_hr", hr.restingHeartRate);
       metricCount++;
     }
   } catch {
     /* heart rate unavailable */
+  }
+  try {
+    const sleep = (await client.getSleepData(day)) as unknown as {
+      dailySleepDTO?: { sleepTimeSeconds?: number; sleepScores?: { overall?: { value?: number } } };
+    };
+    const secs = sleep?.dailySleepDTO?.sleepTimeSeconds;
+    if (typeof secs === "number" && secs > 0) {
+      await upsertMetric(db, userId, dayStr, "sleep_hours", Math.round((secs / 3600) * 10) / 10);
+      metricCount++;
+    }
+    const score = sleep?.dailySleepDTO?.sleepScores?.overall?.value;
+    if (typeof score === "number" && score > 0) {
+      await upsertMetric(db, userId, dayStr, "sleep_score", score);
+      metricCount++;
+    }
+  } catch {
+    /* sleep unavailable */
   }
 
   return { activities, metrics: metricCount };

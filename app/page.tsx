@@ -3,8 +3,9 @@ import { Flame, Plus, ChevronRight } from "lucide-react";
 import { getLocation } from "@/lib/location";
 import { getCurrentUser } from "@/lib/auth";
 import { getStreak, getSuggestedRoutine, getRecentWorkouts } from "@/lib/db/queries";
-import { getLatestInsight } from "@/lib/db/insights";
+import { getLatestInsight, getLatestMetrics } from "@/lib/db/insights";
 import { PageHeader } from "@/components/page-header";
+import { DeviceMetrics } from "@/components/device-metrics";
 import { LocationToggle } from "@/components/location-toggle";
 import { RoutineCard } from "@/components/routine-card";
 import { InsightCard } from "@/components/insight-card";
@@ -23,11 +24,12 @@ function greeting(): string {
 
 export default async function TodayPage() {
   const [location, user] = await Promise.all([getLocation(), getCurrentUser()]);
-  const [streak, suggested, recent, insight] = await Promise.all([
+  const [streak, suggested, recent, insight, deviceMetrics] = await Promise.all([
     getStreak(user),
     getSuggestedRoutine(location, user),
     getRecentWorkouts(user.id, 5),
     getLatestInsight(user.id, "weekly"),
+    getLatestMetrics(user.id),
   ]);
 
   const pct = Math.min(100, Math.round((streak.thisWeekCount / streak.weeklyGoal) * 100));
@@ -55,6 +57,8 @@ export default async function TodayPage() {
               : `${Math.max(0, streak.weeklyGoal - streak.thisWeekCount)} more to hit this week's goal.`}
           </p>
         </div>
+
+        <DeviceMetrics metrics={deviceMetrics} />
 
         <InsightCard initialText={insight?.text ?? null} />
 
