@@ -42,27 +42,29 @@ export function MealPlanPanel({
 
       {plan ? (
         <div className="space-y-3">
-          {plan.days?.map((d, i) => (
+          {plan.meals?.map((m, i) => (
             <div key={i} className="bg-card rounded-xl border p-4">
               <div className="flex items-baseline justify-between">
-                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">{d.day}</span>
+                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                  {m.kind === "new" ? "New idea" : "Staple"}
+                </span>
                 <span className="text-muted-foreground flex items-center gap-2 text-xs">
                   <span className="flex items-center gap-1">
-                    <Beef className="size-3.5" /> {d.meal.proteinGrams}g
+                    <Beef className="size-3.5" /> {m.proteinGrams}g
                   </span>
                   <span className="flex items-center gap-1">
-                    <Clock className="size-3.5" /> {d.meal.prepMinutes}m
+                    <Clock className="size-3.5" /> {m.prepMinutes}m
                   </span>
                 </span>
               </div>
               <div className="mt-1 flex items-start justify-between gap-2">
-                <h3 className="font-medium">{d.meal.name}</h3>
-                <MealRating name={d.meal.name} current={feedback[d.meal.name] ?? null} />
+                <h3 className="font-medium">{m.name}</h3>
+                <MealRating name={m.name} current={feedback[m.name] ?? null} />
               </div>
-              {d.meal.blurb && <p className="text-muted-foreground mt-0.5 text-sm">{d.meal.blurb}</p>}
-              {d.meal.steps?.length > 0 && (
+              {m.blurb && <p className="text-muted-foreground mt-0.5 text-sm">{m.blurb}</p>}
+              {m.steps?.length > 0 && (
                 <ol className="text-muted-foreground mt-2 list-decimal space-y-0.5 pl-4 text-sm">
-                  {d.meal.steps.map((s, j) => (
+                  {m.steps.map((s, j) => (
                     <li key={j}>{s}</li>
                   ))}
                 </ol>
@@ -71,7 +73,9 @@ export function MealPlanPanel({
           ))}
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">No plan yet. Generate one and it&apos;ll feed your grocery list.</p>
+        <p className="text-muted-foreground text-sm">
+          No ideas yet. Generate a few and they&apos;ll feed your grocery list.
+        </p>
       )}
     </div>
   );

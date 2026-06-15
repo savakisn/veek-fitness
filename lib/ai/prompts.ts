@@ -3,13 +3,14 @@
 
 export type PlannedMeal = {
   name: string;
+  kind?: "staple" | "new";
   blurb: string;
   proteinGrams: number;
   prepMinutes: number;
   ingredients: { item: string; quantity: string }[];
   steps: string[];
 };
-export type WeeklyMealPlan = { days: { day: string; meal: PlannedMeal }[] };
+export type WeeklyMealPlan = { meals: PlannedMeal[] };
 
 export type RecipeSuggestion = {
   name: string;
@@ -51,14 +52,15 @@ export function mealPlanPrompt(opts: {
   disliked: string[];
 }): { system: string; prompt: string } {
   const prompt = [
-    `Plan 7 easy, high-protein dinners for ${opts.household} people. Diet leaning: ${opts.dietStyle}.`,
+    `Suggest 3-4 easy, high-protein dinner ideas for the week for ${opts.household} people. Diet leaning: ${opts.dietStyle}.`,
+    "Mix a couple of interesting NEW ideas with a couple of easy STAPLES they can repeat. NOT one different meal per day.",
     dislikeLine(opts.dislikes),
     ...tasteLines(opts.liked, opts.disliked),
     opts.pantry.length ? `Lean on what's already on hand where it helps: ${opts.pantry.join(", ")}.` : "",
     "",
     "Return JSON exactly like:",
-    `{"days":[{"day":"Monday","meal":{"name":"","blurb":"one friendly sentence","proteinGrams":40,"prepMinutes":25,"ingredients":[{"item":"chicken thighs","quantity":"1 lb"}],"steps":["short step","short step"]}}]}`,
-    "Use Monday through Sunday. Keep steps to 3-5 short lines each.",
+    `{"meals":[{"name":"","kind":"staple","blurb":"one friendly sentence","proteinGrams":40,"prepMinutes":25,"ingredients":[{"item":"chicken thighs","quantity":"1 lb"}],"steps":["short step","short step"]}]}`,
+    `kind is "new" or "staple". Keep steps to 3-5 short lines each.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -84,6 +86,28 @@ export function fridgePrompt(opts: {
     .filter(Boolean)
     .join("\n");
   return { system: KITCHEN_SYSTEM, prompt };
+}
+
+export type CoachPick = { routineSlug: string; reason: string };
+
+export function workoutCoachPrompt(opts: {
+  available: { slug: string; name: string; goalTag: string }[];
+  recent: string[];
+  feeling: string;
+  location: "home" | "gym";
+}): { system: string; prompt: string } {
+  const system =
+    "You are a friendly fitness coach whose priority is staying mobile and back-safe, not pushing hard. Pick exactly ONE routine from the provided list that fits how the person feels and where they are. When they feel low, tired, sore, or tight, favor gentler mobility/yoga/recovery; when they feel good, something more active is fine. Avoid repeating what they just did. Return ONLY valid JSON, no prose.";
+  const prompt = [
+    `Location: ${opts.location}.`,
+    `How they feel today: ${opts.feeling || "not specified"}.`,
+    `Recently did: ${opts.recent.join(", ") || "nothing lately"}.`,
+    "Choose one slug from these available routines:",
+    ...opts.available.map((r) => `- ${r.slug} (${r.name}, ${r.goalTag})`),
+    "",
+    `Return JSON exactly like: {"routineSlug":"morning-mobility","reason":"one short friendly sentence on why it fits today"}`,
+  ].join("\n");
+  return { system, prompt };
 }
 
 export function fitnessSummaryPrompt(stats: {

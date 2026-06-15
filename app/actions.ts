@@ -7,9 +7,10 @@ import { eq, and } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { workouts, users, household, aiInsights } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { getRoutineCards, getRecentWorkouts } from "@/lib/db/queries";
 import { getWeeklyStats } from "@/lib/db/insights";
-import { generateText, AiUnavailableError } from "@/lib/ai";
-import { fitnessSummaryPrompt } from "@/lib/ai/prompts";
+import { generateText, generateJSON, AiUnavailableError } from "@/lib/ai";
+import { fitnessSummaryPrompt, workoutCoachPrompt, type CoachPick } from "@/lib/ai/prompts";
 import { todayISO } from "@/lib/format";
 
 export async function setLocation(location: "home" | "gym") {
@@ -91,6 +92,30 @@ export async function updateKitchenPrefs(input: { householdSize: number; dislike
     .where(eq(household.id, 1));
   revalidatePath("/settings");
   revalidatePath("/kitchen");
+}
+
+export async function suggestWorkout(input: {
+  location: "home" | "gym";
+  feeling: string;
+}): Promise<{ ok: true; slug: string; name: string; reason: string } | { ok: false; error: string }> {
+  try {
+    const user = await getCurrentUser();
+    const cards = (await getRoutineCards(input.location, user)).filter((c) => c.available);
+    if (cards.length === 0) return { ok: false, error: "No routines available for that spot yet." };
+    const recent = await getRecentWorkouts(user.id, 5);
+    const { system, prompt } = workoutCoachPrompt({
+      available: cards.map((c) => ({ slug: c.slug, name: c.name, goalTag: c.goalTag })),
+      recent: recent.map((r) => r.routineName ?? r.type ?? "workout"),
+      feeling: input.feeling,
+      location: input.location,
+    });
+    const pick = await generateJSON<CoachPick>(prompt, system);
+    const chosen = cards.find((c) => c.slug === pick.routineSlug) ?? cards[0];
+    return { ok: true, slug: chosen.slug, name: chosen.name, reason: pick.reason ?? "" };
+  } catch (e) {
+    if (e instanceof AiUnavailableError) return { ok: false, error: "AI isn't set up yet. Add ANTHROPIC_API_KEY to enable it." };
+    return { ok: false, error: "Couldn't get a suggestion. Try again." };
+  }
 }
 
 export async function refreshFitnessInsight(): Promise<

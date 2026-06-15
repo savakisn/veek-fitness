@@ -110,8 +110,8 @@ export async function buildGroceryFromPlan(): Promise<{ ok: true; count: number 
   const have = (key: string) => pantryNames.some((pn) => pn.includes(key) || key.includes(pn));
 
   const seen = new Map<string, { name: string; quantity: string | null }>();
-  for (const d of plan.days) {
-    for (const ing of d.meal.ingredients ?? []) {
+  for (const m of plan.meals ?? []) {
+    for (const ing of m.ingredients ?? []) {
       const key = ing.item?.trim().toLowerCase();
       if (!key || have(key)) continue;
       if (!seen.has(key)) seen.set(key, { name: ing.item.trim(), quantity: ing.quantity || null });

@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { LocationToggle } from "@/components/location-toggle";
 import { RoutineCard } from "@/components/routine-card";
 import { InsightCard } from "@/components/insight-card";
+import { CoachSuggestion } from "@/components/coach-suggestion";
 import { Progress } from "@/components/ui/progress";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,8 @@ export default async function TodayPage() {
             </p>
           )}
         </section>
+
+        <CoachSuggestion location={location} />
 
         <Link href="/log" className={cn(buttonVariants({ variant: "outline" }), "h-11 w-full")}>
           <Plus className="size-4" /> Log something else
