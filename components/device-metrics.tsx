@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Moon, Heart, Star, BatteryMedium, Scale } from "lucide-react";
+import { Moon, Heart, Star, BatteryMedium, Scale, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { StepsTrend } from "./steps-trend";
+import { SyncButton } from "./sync-button";
 
 const STEP_GOAL = 8000;
 
@@ -71,12 +72,20 @@ export function DeviceMetrics({
 }) {
   const steps = metrics.steps;
   const hasStats =
-    metrics.resting_hr || metrics.sleep_hours || metrics.sleep_score || metrics.body_battery || metrics.weight;
+    metrics.resting_hr ||
+    metrics.sleep_hours ||
+    metrics.sleep_score ||
+    metrics.body_battery ||
+    metrics.weight ||
+    metrics.fitness_age;
   if (steps == null && !hasStats && stepsSeries.length === 0) return null;
 
   return (
     <div className="bg-card space-y-4 rounded-2xl border p-4">
-      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">From your Garmin</p>
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">From your Garmin</p>
+        <SyncButton />
+      </div>
 
       {steps != null && (
         <Link href="/metric/steps" className="flex items-center gap-4">
@@ -111,6 +120,7 @@ export function DeviceMetrics({
           {metrics.sleep_hours ? <Stat href="/metric/sleep_hours" icon={Moon} label="Sleep" value={`${metrics.sleep_hours}h`} /> : null}
           {metrics.sleep_score ? <Stat href="/metric/sleep_score" icon={Star} label="Sleep score" value={String(Math.round(metrics.sleep_score))} /> : null}
           {metrics.weight ? <Stat href="/metric/weight" icon={Scale} label="Weight" value={`${metrics.weight} lb`} /> : null}
+          {metrics.fitness_age ? <Stat href="/metric/fitness_age" icon={Sparkles} label="Fitness age" value={`${Math.round(metrics.fitness_age)} yrs`} /> : null}
         </div>
       )}
     </div>

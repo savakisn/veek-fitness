@@ -14,6 +14,7 @@ const META: Record<string, { label: string; unit: string; variant: "bar" | "line
   body_battery: { label: "Body Battery", unit: "", variant: "line", decimals: 0 },
   sleep_hours: { label: "Sleep", unit: "h", variant: "line", decimals: 1 },
   sleep_score: { label: "Sleep score", unit: "", variant: "line", decimals: 0 },
+  fitness_age: { label: "Fitness age", unit: " yrs", variant: "line", decimals: 0 },
 };
 
 function prettyDate(iso: string): string {

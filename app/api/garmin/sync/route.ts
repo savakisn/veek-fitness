@@ -1,14 +1,27 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { verifyToken } from "@/lib/auth-token";
 import { syncGarmin } from "@/lib/garmin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Daily Vercel cron hits this. Protected by CRON_SECRET (Vercel sends it as a
-// Bearer token); if CRON_SECRET is unset the route is open (local dev).
-export async function GET(req: Request) {
+// The daily Vercel cron hits GET with the CRON_SECRET bearer. The app's "Sync
+// now" button hits POST as a logged-in user. Either path triggers a full sync.
+async function authorized(req: Request): Promise<boolean> {
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (secret && req.headers.get("authorization") === `Bearer ${secret}`) return true;
+  const authSecret = process.env.AUTH_SECRET;
+  if (authSecret) {
+    const userId = await verifyToken((await cookies()).get("vf_user")?.value, authSecret);
+    if (userId) return true;
+  }
+  // No secrets configured at all (local dev) → open.
+  return !secret && !authSecret;
+}
+
+async function run(req: Request) {
+  if (!(await authorized(req))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
@@ -21,3 +34,6 @@ export async function GET(req: Request) {
     );
   }
 }
+
+export const GET = run;
+export const POST = run;

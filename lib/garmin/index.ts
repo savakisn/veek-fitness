@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { getDb } from "../db";
 import type { DB } from "../db";
 import { users, workouts, metrics, garminAuth } from "../db/schema";
+import { upsertFitnessAge } from "../fitness-age";
 
 // Pulls Garmin data into one user's record (Garmin belongs to Nick). Unofficial
 // library, so everything is best-effort and deduped by (user, source, external_id).
@@ -192,6 +193,12 @@ export async function fetchLiveMetrics(): Promise<{ updated: number }> {
   } catch {
     /* body battery unavailable */
   }
+  // Recompute fitness age each open so it tracks resting HR like body battery.
+  try {
+    if (await upsertFitnessAge(db, userId)) updated++;
+  } catch {
+    /* fitness age unavailable */
+  }
   return { updated };
 }
 
@@ -334,6 +341,13 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     }
   } catch {
     /* body battery unavailable */
+  }
+
+  // Derived fitness age (needs resting HR + weight above), best-effort.
+  try {
+    if (await upsertFitnessAge(db, userId)) metricCount++;
+  } catch {
+    /* fitness age unavailable */
   }
 
   return { activities, metrics: metricCount };
