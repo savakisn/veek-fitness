@@ -96,6 +96,21 @@ export async function getRecentWorkouts(
   return rows.map((r) => ({ ...r, routineName: r.routineId ? nameById.get(r.routineId) ?? null : null }));
 }
 
+export async function getWorkoutById(
+  id: number,
+  userId: number,
+): Promise<(Workout & { routineName: string | null }) | null> {
+  const db = await getDb();
+  const [w] = await db.select().from(workouts).where(and(eq(workouts.id, id), eq(workouts.userId, userId)));
+  if (!w) return null;
+  let routineName: string | null = null;
+  if (w.routineId) {
+    const [r] = await db.select({ name: routines.name }).from(routines).where(eq(routines.id, w.routineId));
+    routineName = r?.name ?? null;
+  }
+  return { ...w, routineName };
+}
+
 export async function getStreak(user: User): Promise<StreakInfo> {
   const db = await getDb();
   const rows = await db.select({ date: workouts.date }).from(workouts).where(eq(workouts.userId, user.id));

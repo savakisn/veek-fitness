@@ -36,6 +36,13 @@
       "when": 1781550000000,
       "tag": "0004_saved_recipes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0005_workout_detail",
+      "breakpoints": true
     }
   ]
 }

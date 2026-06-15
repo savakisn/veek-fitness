@@ -99,6 +99,14 @@ export const workouts = pgTable(
     perceivedEffort: integer("perceived_effort"), // 1-5
     notes: text("notes"),
     externalId: text("external_id"),
+    // Per-session stats from a device (Garmin): avg/max HR, calories, distance, elevation.
+    detail: jsonb("detail").$type<{
+      avgHr?: number;
+      maxHr?: number;
+      calories?: number;
+      distanceKm?: number;
+      elevationM?: number;
+    }>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("workouts_user_source_external_uniq").on(t.userId, t.source, t.externalId)],

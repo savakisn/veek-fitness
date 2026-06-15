@@ -58,6 +58,18 @@ export async function logWorkout(input: LogWorkoutInput) {
   revalidatePath("/history");
 }
 
+export async function updateWorkoutType(id: number, type: string) {
+  const db = await getDb();
+  const user = await getCurrentUser();
+  await db
+    .update(workouts)
+    .set({ type: type.trim() || null })
+    .where(and(eq(workouts.id, id), eq(workouts.userId, user.id)));
+  revalidatePath("/history");
+  revalidatePath("/");
+  revalidatePath(`/workout/${id}`);
+}
+
 export async function deleteWorkout(id: number) {
   const db = await getDb();
   const user = await getCurrentUser();

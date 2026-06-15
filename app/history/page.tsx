@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getRecentWorkouts, getStreak } from "@/lib/db/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
@@ -23,17 +24,19 @@ export default async function HistoryPage() {
           <ul className="divide-y rounded-xl border">
             {workouts.map((w) => (
               <li key={w.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{w.routineName ?? w.type ?? "Workout"}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {prettyDate(w.date)}
-                    {w.location ? ` · ${w.location}` : ""}
-                    {w.perceivedEffort ? ` · ${EFFORT[w.perceivedEffort]}` : ""}
-                  </p>
-                </div>
-                {w.durationMinutes ? (
-                  <span className="text-muted-foreground text-sm tabular-nums">{w.durationMinutes}m</span>
-                ) : null}
+                <Link href={`/workout/${w.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{w.routineName ?? w.type ?? "Workout"}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {prettyDate(w.date)}
+                      {w.location ? ` · ${w.location}` : ""}
+                      {w.perceivedEffort ? ` · ${EFFORT[w.perceivedEffort]}` : ""}
+                    </p>
+                  </div>
+                  {w.durationMinutes ? (
+                    <span className="text-muted-foreground text-sm tabular-nums">{w.durationMinutes}m</span>
+                  ) : null}
+                </Link>
                 <DeleteWorkoutButton id={w.id} />
               </li>
             ))}

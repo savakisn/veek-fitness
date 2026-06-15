@@ -16,7 +16,23 @@ type GarminActivity = {
   activityType?: { typeKey?: string };
   startTimeLocal?: string;
   duration?: number;
+  averageHR?: number;
+  maxHR?: number;
+  calories?: number;
+  distance?: number;
+  elevationGain?: number;
 };
+
+function activityDetail(a: GarminActivity) {
+  const round = (n: number, p = 0) => Math.round(n * 10 ** p) / 10 ** p;
+  return {
+    avgHr: a.averageHR ? Math.round(a.averageHR) : undefined,
+    maxHr: a.maxHR ? Math.round(a.maxHR) : undefined,
+    calories: a.calories ? Math.round(a.calories) : undefined,
+    distanceKm: a.distance ? round(a.distance / 1000, 2) : undefined,
+    elevationM: a.elevationGain ? Math.round(a.elevationGain) : undefined,
+  };
+}
 
 async function targetUserId(db: DB): Promise<number> {
   const envId = process.env.GARMIN_USER_ID;
@@ -51,18 +67,17 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   for (const a of acts) {
     const date = (a.startTimeLocal ?? "").slice(0, 10);
     if (!date) continue;
+    const type = a.activityName || a.activityType?.typeKey || "Activity";
+    const durationMinutes = a.duration ? Math.round(a.duration / 60) : null;
+    const detail = activityDetail(a);
     await db
       .insert(workouts)
-      .values({
-        userId,
-        date,
-        source: "garmin",
-        externalId: String(a.activityId),
-        type: a.activityName || a.activityType?.typeKey || "Activity",
-        durationMinutes: a.duration ? Math.round(a.duration / 60) : null,
-        location: "outdoor",
-      })
-      .onConflictDoNothing();
+      .values({ userId, date, source: "garmin", externalId: String(a.activityId), type, durationMinutes, location: "outdoor", detail })
+      // Refresh stats on re-sync, but don't clobber a type the user has relabelled.
+      .onConflictDoUpdate({
+        target: [workouts.userId, workouts.source, workouts.externalId],
+        set: { durationMinutes, detail },
+      });
     activities++;
   }
 
