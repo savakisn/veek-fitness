@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, gte, eq, and } from "drizzle-orm";
+import { desc, asc, gte, eq, and } from "drizzle-orm";
 import { getDb } from "./index";
 import { workouts, routines, aiInsights, metrics } from "./schema";
 import type { AiInsight, User } from "./schema";
@@ -50,6 +50,20 @@ export async function getWeeklyStats(user: User): Promise<FitnessStats> {
     byCategory,
     recentTypes: recent.map((w) => w.routineName ?? w.type ?? "Workout"),
   };
+}
+
+export async function getMetricSeries(
+  userId: number,
+  metricType: string,
+  days = 7,
+): Promise<{ date: string; value: number }[]> {
+  const db = await getDb();
+  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  return db
+    .select({ date: metrics.date, value: metrics.value })
+    .from(metrics)
+    .where(and(eq(metrics.userId, userId), eq(metrics.metricType, metricType), gte(metrics.date, since)))
+    .orderBy(asc(metrics.date));
 }
 
 export async function getLatestInsight(userId: number, kind = "weekly"): Promise<AiInsight | null> {

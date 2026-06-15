@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { startOfWeek } from "date-fns";
 import { getDb } from "@/lib/db";
 import { pantryItems, mealPlans, groceryItems, mealFeedback, savedRecipes } from "@/lib/db/schema";
@@ -67,6 +67,24 @@ export async function rateMeal(name: string, sentiment: "like" | "dislike" | nul
       .values({ name: n, sentiment })
       .onConflictDoUpdate({ target: mealFeedback.name, set: { sentiment } });
   }
+  revalidatePath("/kitchen");
+}
+
+// "Not this week" — drop a meal from the current plan (it can resurface later;
+// for a permanent no, thumbs-down steers the AI to avoid it).
+export async function dismissMeal(name: string) {
+  const db = await getDb();
+  const plan = await getCurrentMealPlan();
+  if (!plan) return;
+  const meals = (plan.meals ?? []).filter(
+    (m) => m.name.trim().toLowerCase() !== name.trim().toLowerCase(),
+  );
+  const [row] = await db
+    .select({ id: mealPlans.id })
+    .from(mealPlans)
+    .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+    .limit(1);
+  if (row) await db.update(mealPlans).set({ plan: { meals } }).where(eq(mealPlans.id, row.id));
   revalidatePath("/kitchen");
 }
 

@@ -128,19 +128,23 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     activities++;
   }
 
-  // Daily numbers for yesterday (today is usually not fully synced yet).
-  // Best-effort and independent — never let these break the activity sync.
+  // Daily numbers, best-effort and independent — never break the activity sync.
   let metricCount = 0;
-  const day = new Date(Date.now() - 86400000);
+  const day = new Date(Date.now() - 86400000); // yesterday (today isn't synced yet)
   const dayStr = day.toISOString().slice(0, 10);
-  try {
-    const steps = (await client.getSteps(day)) as unknown;
-    if (typeof steps === "number" && steps > 0) {
-      await upsertMetric(db, userId, dayStr, "steps", steps);
-      metricCount++;
+  // Steps for the last 7 days so the card can show a trend.
+  for (let i = 1; i <= 7; i++) {
+    const dd = new Date(Date.now() - i * 86400000);
+    const ds = dd.toISOString().slice(0, 10);
+    try {
+      const steps = (await client.getSteps(dd)) as unknown;
+      if (typeof steps === "number" && steps > 0) {
+        await upsertMetric(db, userId, ds, "steps", steps);
+        metricCount++;
+      }
+    } catch {
+      /* steps unavailable */
     }
-  } catch {
-    /* steps unavailable */
   }
   try {
     const hr = (await client.getHeartRate(day)) as unknown as { restingHeartRate?: number };

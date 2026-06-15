@@ -2,27 +2,39 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { X, Plus } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EQUIPMENT } from "@/lib/equipment";
 import { updateEquipment, updateWeeklyGoal, updateKitchenPrefs } from "@/app/actions";
 import type { User, Household } from "@/lib/db/schema";
 
 function KitchenPrefs({ household: hh }: { household: Household }) {
-  const [household, setHousehold] = useState(hh.householdSize);
-  const [dislikes, setDislikes] = useState(hh.dislikes.join(", "));
+  const [householdSize, setHouseholdSize] = useState(hh.householdSize);
+  const [dislikes, setDislikes] = useState<string[]>(hh.dislikes);
+  const [draft, setDraft] = useState("");
   const [, start] = useTransition();
 
-  function save(nextHousehold: number, nextDislikes: string) {
-    const list = nextDislikes
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+  function persist(size: number, list: string[]) {
     start(async () => {
-      await updateKitchenPrefs({ householdSize: nextHousehold, dislikes: list });
+      await updateKitchenPrefs({ householdSize: size, dislikes: list });
     });
+  }
+  function addDislike() {
+    const v = draft.trim();
+    setDraft("");
+    if (!v || dislikes.some((d) => d.toLowerCase() === v.toLowerCase())) return;
+    const next = [...dislikes, v];
+    setDislikes(next);
+    persist(householdSize, next);
+  }
+  function removeDislike(d: string) {
+    const next = dislikes.filter((x) => x !== d);
+    setDislikes(next);
+    persist(householdSize, next);
   }
 
   return (
@@ -35,12 +47,12 @@ function KitchenPrefs({ household: hh }: { household: Household }) {
               key={n}
               type="button"
               onClick={() => {
-                setHousehold(n);
-                save(n, dislikes);
+                setHouseholdSize(n);
+                persist(n, dislikes);
               }}
               className={cn(
                 "rounded-lg border py-2 text-sm tabular-nums",
-                household === n ? "border-primary bg-primary/10 font-medium" : "text-muted-foreground",
+                householdSize === n ? "border-primary bg-primary/10 font-medium" : "text-muted-foreground",
               )}
             >
               {n}
@@ -49,15 +61,36 @@ function KitchenPrefs({ household: hh }: { household: Household }) {
         </div>
       </div>
       <div>
-        <Label htmlFor="dislikes">Foods to avoid</Label>
-        <p className="text-muted-foreground mt-0.5 mb-2 text-sm">Comma separated. The meal planner skips these.</p>
-        <Input
-          id="dislikes"
-          value={dislikes}
-          onChange={(e) => setDislikes(e.target.value)}
-          onBlur={() => save(household, dislikes)}
-          placeholder="e.g. mushrooms, cilantro"
-        />
+        <Label>Foods to avoid</Label>
+        <p className="text-muted-foreground mt-0.5 mb-2 text-sm">Shared with the household. The meal planner skips these.</p>
+        {dislikes.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {dislikes.map((d) => (
+              <span key={d} className="bg-muted/50 flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm">
+                {d}
+                <button type="button" aria-label={`Remove ${d}`} onClick={() => removeDislike(d)} className="text-muted-foreground hover:text-destructive">
+                  <X className="size-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addDislike();
+              }
+            }}
+            placeholder="Add a food to avoid"
+          />
+          <Button type="button" onClick={addDislike} size="icon" variant="outline">
+            <Plus className="size-4" />
+          </Button>
+        </div>
       </div>
     </section>
   );
