@@ -4,10 +4,11 @@ import { useRef, useState, type ReactNode } from "react";
 import { Bookmark, CalendarX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const THRESHOLD = 80;
+const THRESHOLD = 120; // deliberate swipe, not a twitch
 
 // Swipe right to bookmark, left for "not this week". Touch-only flourish; the
-// card's own buttons do the same thing for mouse/keyboard.
+// card's own buttons do the same thing for mouse/keyboard. A direction lock
+// keeps vertical scrolling from being read as a swipe.
 export function SwipeCard({
   children,
   onSwipeLeft,
@@ -18,7 +19,8 @@ export function SwipeCard({
   onSwipeRight?: () => void;
 }) {
   const [dx, setDx] = useState(0);
-  const startX = useRef<number | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const axis = useRef<"h" | "v" | null>(null);
 
   return (
     <div className="relative overflow-hidden rounded-xl">
@@ -30,16 +32,26 @@ export function SwipeCard({
       </div>
       <div
         onTouchStart={(e) => {
-          startX.current = e.touches[0].clientX;
+          start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          axis.current = null;
         }}
         onTouchMove={(e) => {
-          if (startX.current != null) setDx(e.touches[0].clientX - startX.current);
+          if (!start.current) return;
+          const mx = e.touches[0].clientX - start.current.x;
+          const my = e.touches[0].clientY - start.current.y;
+          if (!axis.current && (Math.abs(mx) > 12 || Math.abs(my) > 12)) {
+            axis.current = Math.abs(mx) > Math.abs(my) ? "h" : "v";
+          }
+          if (axis.current === "h") setDx(mx);
         }}
         onTouchEnd={() => {
-          if (dx <= -THRESHOLD) onSwipeLeft?.();
-          else if (dx >= THRESHOLD) onSwipeRight?.();
+          if (axis.current === "h") {
+            if (dx <= -THRESHOLD) onSwipeLeft?.();
+            else if (dx >= THRESHOLD) onSwipeRight?.();
+          }
           setDx(0);
-          startX.current = null;
+          start.current = null;
+          axis.current = null;
         }}
         style={{ transform: `translateX(${dx}px)` }}
         className={cn("touch-pan-y", dx === 0 && "transition-transform duration-200")}

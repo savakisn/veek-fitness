@@ -172,6 +172,30 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   } catch {
     /* sleep unavailable */
   }
+  try {
+    const lbs = (await client.getDailyWeightInPounds(day)) as unknown;
+    if (typeof lbs === "number" && lbs > 0) {
+      await upsertMetric(db, userId, dayStr, "weight", Math.round(lbs * 10) / 10);
+      metricCount++;
+    }
+  } catch {
+    /* weight unavailable */
+  }
+  try {
+    const profile = (await client.getUserProfile()) as unknown as { displayName?: string };
+    if (profile?.displayName) {
+      const summary = await client.get<{ bodyBatteryMostRecentValue?: number; bodyBatteryHighestValue?: number }>(
+        `https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${dayStr}`,
+      );
+      const bb = summary?.bodyBatteryMostRecentValue ?? summary?.bodyBatteryHighestValue;
+      if (typeof bb === "number" && bb > 0) {
+        await upsertMetric(db, userId, dayStr, "body_battery", bb);
+        metricCount++;
+      }
+    }
+  } catch {
+    /* body battery unavailable */
+  }
 
   return { activities, metrics: metricCount };
 }

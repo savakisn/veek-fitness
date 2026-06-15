@@ -15,8 +15,8 @@ import {
 } from "@/lib/db/kitchen";
 import { generateJSON } from "@/lib/ai";
 import { AiUnavailableError } from "@/lib/ai";
-import { mealPlanPrompt, fridgePrompt } from "@/lib/ai/prompts";
-import type { WeeklyMealPlan, FridgeResult, RecipeSuggestion } from "@/lib/ai/prompts";
+import { mealPlanPrompt, fridgePrompt, replacementMealPrompt } from "@/lib/ai/prompts";
+import type { WeeklyMealPlan, FridgeResult, RecipeSuggestion, PlannedMeal } from "@/lib/ai/prompts";
 
 function aiError(e: unknown): string {
   if (e instanceof AiUnavailableError) return "AI isn't set up yet. Add ANTHROPIC_API_KEY to enable it.";
@@ -86,6 +86,41 @@ export async function dismissMeal(name: string) {
     .limit(1);
   if (row) await db.update(mealPlans).set({ plan: { meals } }).where(eq(mealPlans.id, row.id));
   revalidatePath("/kitchen");
+}
+
+// Remove a meal and refill the slot with a fresh idea, so the week stays a full
+// shopping list. Used by "not this week" and disliking a planned meal.
+export async function replaceMealInPlan(name: string): Promise<{ ok: boolean }> {
+  const db = await getDb();
+  const plan = await getCurrentMealPlan();
+  if (!plan) return { ok: false };
+  const remaining = (plan.meals ?? []).filter(
+    (m) => m.name.trim().toLowerCase() !== name.trim().toLowerCase(),
+  );
+  try {
+    const [h, pantry, feedback] = await Promise.all([getHousehold(), getPantry(), getMealFeedback()]);
+    const taste = splitFeedback(feedback);
+    const { system, prompt } = replacementMealPrompt({
+      household: h.householdSize,
+      dietStyle: h.dietStyle,
+      dislikes: h.dislikes,
+      pantry: pantry.map((i) => i.name),
+      liked: taste.liked,
+      disliked: [...taste.disliked, name, ...remaining.map((m) => m.name)],
+    });
+    const res = await generateJSON<{ meal: PlannedMeal }>(prompt, system);
+    if (res?.meal?.name) remaining.push(res.meal);
+  } catch {
+    /* leave it removed if a replacement can't be generated */
+  }
+  const [row] = await db
+    .select({ id: mealPlans.id })
+    .from(mealPlans)
+    .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+    .limit(1);
+  if (row) await db.update(mealPlans).set({ plan: { meals: remaining } }).where(eq(mealPlans.id, row.id));
+  revalidatePath("/kitchen");
+  return { ok: true };
 }
 
 export async function generateMealPlan(): Promise<{ ok: true } | { ok: false; error: string }> {

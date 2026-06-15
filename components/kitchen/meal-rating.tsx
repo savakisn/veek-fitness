@@ -8,7 +8,15 @@ import { rateMeal } from "@/app/kitchen/actions";
 
 export type Sentiment = "like" | "dislike";
 
-export function MealRating({ name, current }: { name: string; current: Sentiment | null }) {
+export function MealRating({
+  name,
+  current,
+  onDislike,
+}: {
+  name: string;
+  current: Sentiment | null;
+  onDislike?: () => void;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -16,6 +24,7 @@ export function MealRating({ name, current }: { name: string; current: Sentiment
     const next = current === s ? null : s;
     start(async () => {
       await rateMeal(name, next);
+      if (next === "dislike") onDislike?.();
       router.refresh();
     });
   }

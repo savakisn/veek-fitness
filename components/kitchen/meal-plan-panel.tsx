@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Sparkles, Clock, Beef, CalendarX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { generateMealPlan, dismissMeal, saveRecipe } from "@/app/kitchen/actions";
+import { generateMealPlan, replaceMealInPlan, saveRecipe } from "@/app/kitchen/actions";
 import { MealRating, type Sentiment } from "./meal-rating";
 import { SaveRecipeButton } from "./save-recipe-button";
 import { SwipeCard } from "./swipe-card";
@@ -44,8 +44,8 @@ export function MealPlanPanel({
   }
   function dismiss(name: string) {
     start(async () => {
-      await dismissMeal(name);
-      toast("Not this week.");
+      await replaceMealInPlan(name);
+      toast("Swapped in a fresh idea.");
       router.refresh();
     });
   }
@@ -90,7 +90,7 @@ export function MealPlanPanel({
                       <CalendarX className="size-4" />
                     </button>
                     <SaveRecipeButton recipe={recipeOf(m)} />
-                    <MealRating name={m.name} current={feedback[m.name] ?? null} />
+                    <MealRating name={m.name} current={feedback[m.name] ?? null} onDislike={() => dismiss(m.name)} />
                   </div>
                 </div>
                 {m.blurb && <p className="text-muted-foreground mt-0.5 text-sm">{m.blurb}</p>}

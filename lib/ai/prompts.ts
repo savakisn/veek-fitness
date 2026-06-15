@@ -30,6 +30,7 @@ Hard rules:
 - Bias HIGH PROTEIN.
 - This person gets an upset stomach when their diet changes too fast. Do NOT pile on vegetables, fiber, beans, or unfamiliar "health" foods. Ease up GRADUALLY: a better version of food they already like, not a health overhaul.
 - Keep it interesting and varied; don't repeat the same main protein on back-to-back days.
+- Write any blurbs plainly. No em dashes (use commas or periods), no hype or flattery.
 - Return ONLY valid JSON matching the requested shape. No prose, no markdown.`;
 
 function dislikeLine(dislikes: string[]): string {
@@ -88,6 +89,29 @@ export function fridgePrompt(opts: {
   return { system: KITCHEN_SYSTEM, prompt };
 }
 
+export function replacementMealPrompt(opts: {
+  household: number;
+  dietStyle: string;
+  dislikes: string[];
+  pantry: string[];
+  liked: string[];
+  disliked: string[];
+}): { system: string; prompt: string } {
+  const prompt = [
+    `Suggest ONE easy, high-protein dinner idea for ${opts.household} people. Diet leaning: ${opts.dietStyle}.`,
+    "It must be clearly different from anything in the disliked/avoid list below.",
+    dislikeLine(opts.dislikes),
+    ...tasteLines(opts.liked, opts.disliked),
+    opts.pantry.length ? `Use what's on hand where it helps: ${opts.pantry.join(", ")}.` : "",
+    "",
+    "Return JSON exactly like:",
+    `{"meal":{"name":"","kind":"new","blurb":"one sentence","proteinGrams":40,"prepMinutes":25,"ingredients":[{"item":"chicken thighs","quantity":"1 lb"}],"steps":["short step"]}}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return { system: KITCHEN_SYSTEM, prompt };
+}
+
 export type CoachPick = { routineSlug: string; reason: string };
 
 export function workoutCoachPrompt(opts: {
@@ -97,7 +121,7 @@ export function workoutCoachPrompt(opts: {
   location: "home" | "gym";
 }): { system: string; prompt: string } {
   const system =
-    "You are a friendly fitness coach whose priority is staying mobile and back-safe, not pushing hard. Pick exactly ONE routine from the provided list that fits how the person feels and where they are. When they feel low, tired, sore, or tight, favor gentler mobility/yoga/recovery; when they feel good, something more active is fine. Avoid repeating what they just did. Return ONLY valid JSON, no prose.";
+    "You are a fitness coach whose priority is staying mobile and back-safe, not pushing hard. Pick exactly ONE routine from the provided list that fits how the person feels and where they are. When they feel low, tired, sore, or tight, favor gentler mobility/yoga/recovery; when they feel good, something more active is fine. Avoid repeating what they just did. The reason must be plain and specific, no em dashes (use commas or periods), no hype or flattery. Return ONLY valid JSON, no prose.";
   const prompt = [
     `Location: ${opts.location}.`,
     `How they feel today: ${opts.feeling || "not specified"}.`,
@@ -118,7 +142,7 @@ export function fitnessSummaryPrompt(stats: {
   recentTypes: string[];
 }): { system: string; prompt: string } {
   const system =
-    "You are a concise, encouraging fitness coach. The user's goal is staying mobile and protecting their back into old age, not bodybuilding. Write 2-3 short sentences, no emojis, no fluff. Name one thing they did well and one nudge for the week ahead.";
+    "You are a fitness coach for someone whose goal is staying mobile and protecting their back into old age, not bodybuilding. Write 2-3 short sentences: name one specific thing they did well and one concrete nudge for the week. Plain and warm, like a sharp friend, not a hype machine. No em dashes (use commas or periods). No flattery or hype words like 'crushing it', 'amazing', 'killing it', or 'you've got this'. No emojis.";
   const prompt = [
     `Sessions this week: ${stats.weekSessions} (goal ${stats.weeklyGoal}).`,
     `Current streak: ${stats.streakWeeks} weeks.`,

@@ -1,4 +1,4 @@
-import { Moon, Heart, Star } from "lucide-react";
+import { Moon, Heart, Star, BatteryMedium, Scale } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { StepsTrend } from "./steps-trend";
 
@@ -54,7 +54,8 @@ export function DeviceMetrics({
   stepsSeries: { date: string; value: number }[];
 }) {
   const steps = metrics.steps;
-  const hasStats = metrics.resting_hr || metrics.sleep_hours || metrics.sleep_score;
+  const hasStats =
+    metrics.resting_hr || metrics.sleep_hours || metrics.sleep_score || metrics.body_battery || metrics.weight;
   if (steps == null && !hasStats && stepsSeries.length === 0) return null;
 
   return (
@@ -65,7 +66,7 @@ export function DeviceMetrics({
         <div className="flex items-center gap-4">
           <Ring value={steps} goal={STEP_GOAL} />
           <div className="min-w-0 flex-1">
-            <p className="text-muted-foreground text-xs">Steps · last 7 days (most recent first is yesterday)</p>
+            <p className="text-muted-foreground text-xs">Steps · last 7 days</p>
             {stepsSeries.length > 1 ? (
               <StepsTrend data={stepsSeries} />
             ) : (
@@ -76,10 +77,12 @@ export function DeviceMetrics({
       )}
 
       {hasStats && (
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
+          {metrics.body_battery ? <Stat icon={BatteryMedium} label="Body Battery" value={String(Math.round(metrics.body_battery))} /> : null}
           {metrics.resting_hr ? <Stat icon={Heart} label="Resting HR" value={String(Math.round(metrics.resting_hr))} /> : null}
           {metrics.sleep_hours ? <Stat icon={Moon} label="Sleep" value={`${metrics.sleep_hours}h`} /> : null}
           {metrics.sleep_score ? <Stat icon={Star} label="Sleep score" value={String(Math.round(metrics.sleep_score))} /> : null}
+          {metrics.weight ? <Stat icon={Scale} label="Weight" value={`${metrics.weight} lb`} /> : null}
         </div>
       )}
     </div>
