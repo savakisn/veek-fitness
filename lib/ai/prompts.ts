@@ -77,11 +77,12 @@ export function recipeForPrompt(opts: {
   dislikes: string[];
 }): { system: string; prompt: string } {
   const prompt = [
-    `Write one easy, high-protein recipe for "${opts.name}" for ${opts.household} people.`,
+    `Write one high-protein recipe for "${opts.name}" for ${opts.household} people.`,
+    "They asked for this dish specifically, so give the real, accurate recipe even if it takes longer than 30 minutes. Set prepMinutes to the honest time.",
     dislikeLine(opts.dislikes),
     "Return JSON exactly like:",
     `{"meal":{"name":"${opts.name}","kind":"new","blurb":"one friendly sentence","proteinGrams":40,"prepMinutes":25,"ingredients":[{"item":"","quantity":""}],"steps":["short step"]}}`,
-    "Keep steps to 3-5 short lines. Use real, specific quantities so it can build a grocery list.",
+    "Keep steps to 3-6 short lines. Use real, specific quantities so it can build a grocery list.",
   ].join("\n");
   return { system: KITCHEN_SYSTEM, prompt };
 }
