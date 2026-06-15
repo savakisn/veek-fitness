@@ -4,18 +4,19 @@ import { useSyncExternalStore } from "react";
 
 const subscribe = () => () => {};
 
-// Shows how fresh the synced data is, in the user's local time. Computed on the
-// client (server snapshot is null) so it always uses the browser's timezone,
-// not the server's UTC. A stale time means the watch hasn't uploaded to Garmin.
+// Relative freshness ("Updated 3m ago") computed on the client, so it dodges
+// timezone and clock-offset issues entirely. A large value is the tell that the
+// watch hasn't uploaded to Garmin yet.
 export function SyncStatus({ epoch }: { epoch?: number }) {
   const label = useSyncExternalStore(
     subscribe,
     () => {
       if (!epoch) return null;
-      const d = new Date(epoch * 1000);
-      const sameDay = new Date().toDateString() === d.toDateString();
-      if (!sameDay) return "Updated yesterday";
-      return `Updated ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+      const secs = Math.floor(Date.now() / 1000) - epoch;
+      if (secs < 90) return "Updated just now";
+      if (secs < 3600) return `Updated ${Math.round(secs / 60)}m ago`;
+      if (secs < 86400) return `Updated ${Math.round(secs / 3600)}h ago`;
+      return `Updated ${Math.round(secs / 86400)}d ago`;
     },
     () => null,
   );

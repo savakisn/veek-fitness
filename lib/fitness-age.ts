@@ -65,7 +65,9 @@ export async function fitnessAgeBreakdown(db: DB, userId: number): Promise<Fitne
     vo2Source = "estimated";
   }
 
-  const baseAge = (56 - vo2max) / 0.4;
+  // General male-population VO2max 50th-percentile line (~53 - 0.4*age), inverted.
+  // Calibrated so a typical value lands near chronological age, not athlete norms.
+  const baseAge = (53 - vo2max) / 0.4;
 
   let bmi: number | null = null;
   let bmiAdjust = 0;
