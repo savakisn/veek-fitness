@@ -45,6 +45,13 @@ function activityDetail(a: GarminActivity): Detail {
   };
 }
 
+function nearestDist(samples: { t: number; d: number }[], sec: number): number | null {
+  if (!samples.length) return null;
+  let best = samples[0];
+  for (const s of samples) if (Math.abs(s.t - sec) < Math.abs(best.t - sec)) best = s;
+  return best.d;
+}
+
 // HR, speed, and cumulative distance samples for one activity, via the details
 // endpoint. Best-effort; powers the HR chart and session trimming.
 async function fetchActivitySamples(
@@ -194,13 +201,23 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   const client = await loginClient(db);
 
   const acts = (await client.getActivities(0, 30)) as unknown as GarminActivity[];
+  // A previously saved trim must survive re-sync, so carry it onto the fresh detail.
+  const existing = await db
+    .select({ externalId: workouts.externalId, detail: workouts.detail })
+    .from(workouts)
+    .where(eq(workouts.userId, userId));
+  const savedTrim = new Map(
+    existing
+      .filter((e) => e.externalId && e.detail?.trim)
+      .map((e) => [e.externalId as string, e.detail!.trim!]),
+  );
   let activities = 0;
   let sampled = 0;
   for (const a of acts) {
     const date = (a.startTimeLocal ?? "").slice(0, 10);
     if (!date) continue;
     const type = a.activityName || a.activityType?.typeKey || "Activity";
-    const durationMinutes = a.duration ? Math.round(a.duration / 60) : null;
+    let durationMinutes = a.duration ? Math.round(a.duration / 60) : null;
     const detail = activityDetail(a);
     if (sampled < 6) {
       try {
@@ -209,6 +226,16 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
         /* detail samples unavailable */
       }
       sampled++;
+    }
+    const trim = savedTrim.get(String(a.activityId));
+    if (trim) {
+      detail.trim = trim;
+      durationMinutes = Math.max(1, Math.round((trim.endSec - trim.startSec) / 60));
+      if (detail.distSamples?.length) {
+        const dStart = nearestDist(detail.distSamples, trim.startSec);
+        const dEnd = nearestDist(detail.distSamples, trim.endSec);
+        if (dStart != null && dEnd != null) detail.distanceKm = Math.round(((dEnd - dStart) / 1000) * 100) / 100;
+      }
     }
     await db
       .insert(workouts)
