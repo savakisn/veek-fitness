@@ -3,6 +3,7 @@ import { Moon, Heart, Star, BatteryMedium, Scale, Sparkles } from "lucide-react"
 import type { LucideIcon } from "lucide-react";
 import { StepsTrend } from "./steps-trend";
 import { SyncButton } from "./sync-button";
+import { SyncStatus } from "./sync-status";
 
 const STEP_GOAL = 8000;
 
@@ -87,7 +88,10 @@ export function DeviceMetrics({
     <div className="bg-card space-y-4 rounded-2xl border p-4">
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">From your Garmin</p>
-        <SyncButton />
+        <div className="flex items-center gap-2">
+          <SyncStatus epoch={metrics.synced_at} />
+          <SyncButton />
+        </div>
       </div>
 
       {steps != null && (

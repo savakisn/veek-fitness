@@ -5,8 +5,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getMetricSeries } from "@/lib/db/insights";
 import { fitnessAgeBreakdown } from "@/lib/fitness-age";
+import { fetchBodyBatteryToday } from "@/lib/garmin";
 import { MetricChart } from "@/components/metric-chart";
 import { FitnessAgeBreakdownCard } from "@/components/fitness-age-breakdown";
+import { BodyBatteryChart } from "@/components/body-battery-chart";
 import { LogWeight } from "@/components/log-weight";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,7 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
   const user = await getCurrentUser();
   const series = await getMetricSeries(user.id, id, 30);
   const breakdown = id === "fitness_age" ? await fitnessAgeBreakdown(await getDb(), user.id) : null;
+  const bbToday = id === "body_battery" ? await fetchBodyBatteryToday() : [];
   const fmt = (v: number) => `${v.toFixed(meta.decimals)}${meta.unit}`;
   const latest = series.length ? series[series.length - 1] : null;
 
@@ -51,6 +54,12 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
           </p>
         )}
       </div>
+
+      {id === "body_battery" && bbToday.length > 1 && (
+        <div className="mt-5">
+          <BodyBatteryChart samples={bbToday} />
+        </div>
+      )}
 
       {id === "weight" && (
         <div className="mt-5">

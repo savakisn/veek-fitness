@@ -199,7 +199,34 @@ export async function fetchLiveMetrics(): Promise<{ updated: number }> {
   } catch {
     /* fitness age unavailable */
   }
+  // Record when we last pulled, so the UI can show data freshness.
+  await upsertMetric(db, userId, todayStr, "synced_at", Math.floor(Date.now() / 1000));
   return { updated };
+}
+
+// Today's intraday Body Battery curve (the rise-overnight, fall-through-day
+// shape Garmin shows). Pulled live for the deep-dive page; not persisted.
+export async function fetchBodyBatteryToday(): Promise<{ ts: number; level: number }[]> {
+  const db = await getDb();
+  const client = await loginClient(db);
+  const date = new Date().toISOString().slice(0, 10);
+  try {
+    const r = await client.get<{ bodyBatteryValuesArray?: (number | string)[][] }>(
+      `https://connectapi.garmin.com/wellness-service/wellness/dailyStress/${date}`,
+    );
+    const out: { ts: number; level: number }[] = [];
+    for (const e of r?.bodyBatteryValuesArray ?? []) {
+      const ts = Number(e[0]);
+      const level = Number(e[e.length - 1]);
+      // Raw GMT ms; the client converts to local hours so the curve lines up.
+      if (Number.isFinite(ts) && Number.isFinite(level) && level >= 0 && level <= 100) {
+        out.push({ ts, level });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 export async function syncGarmin(): Promise<GarminSyncResult> {
@@ -282,14 +309,23 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   }
   try {
     const sleep = (await client.getSleepData(day)) as unknown as {
-      dailySleepDTO?: { sleepTimeSeconds?: number; sleepScores?: { overall?: { value?: number } } };
+      dailySleepDTO?: {
+        sleepTimeSeconds?: number;
+        sleepScores?: { overall?: { value?: number }; overallScore?: number };
+      };
+      sleepScores?: { overall?: { value?: number } };
     };
-    const secs = sleep?.dailySleepDTO?.sleepTimeSeconds;
+    const dto = sleep?.dailySleepDTO;
+    const secs = dto?.sleepTimeSeconds;
     if (typeof secs === "number" && secs > 0) {
       await upsertMetric(db, userId, dayStr, "sleep_hours", Math.round((secs / 3600) * 10) / 10);
       metricCount++;
     }
-    const score = sleep?.dailySleepDTO?.sleepScores?.overall?.value;
+    // Sleep score lives under a few shapes depending on device/firmware.
+    const score =
+      dto?.sleepScores?.overall?.value ??
+      dto?.sleepScores?.overallScore ??
+      sleep?.sleepScores?.overall?.value;
     if (typeof score === "number" && score > 0) {
       await upsertMetric(db, userId, dayStr, "sleep_score", score);
       metricCount++;
@@ -356,6 +392,7 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   } catch {
     /* fitness age unavailable */
   }
+  await upsertMetric(db, userId, new Date().toISOString().slice(0, 10), "synced_at", Math.floor(Date.now() / 1000));
 
   return { activities, metrics: metricCount };
 }
