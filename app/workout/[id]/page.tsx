@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getWorkoutById } from "@/lib/db/queries";
 import { prettyDate } from "@/lib/format";
 import { WorkoutTypeEditor } from "@/components/workout-type-editor";
+import { HrChart } from "@/components/hr-chart";
 
 export const dynamic = "force-dynamic";
 const EFFORT = ["", "Easy", "Light", "Moderate", "Hard", "All out"];
@@ -56,6 +57,12 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
               </div>
             );
           })}
+        </div>
+      )}
+
+      {d.hrSamples && d.hrSamples.length > 1 && (
+        <div className="mt-4">
+          <HrChart samples={d.hrSamples} />
         </div>
       )}
 

@@ -23,7 +23,16 @@ type GarminActivity = {
   elevationGain?: number;
 };
 
-function activityDetail(a: GarminActivity) {
+type Detail = {
+  avgHr?: number;
+  maxHr?: number;
+  calories?: number;
+  distanceKm?: number;
+  elevationM?: number;
+  hrSamples?: { t: number; hr: number }[];
+};
+
+function activityDetail(a: GarminActivity): Detail {
   const round = (n: number, p = 0) => Math.round(n * 10 ** p) / 10 ** p;
   return {
     avgHr: a.averageHR ? Math.round(a.averageHR) : undefined,
@@ -32,6 +41,33 @@ function activityDetail(a: GarminActivity) {
     distanceKm: a.distance ? round(a.distance / 1000, 2) : undefined,
     elevationM: a.elevationGain ? Math.round(a.elevationGain) : undefined,
   };
+}
+
+// HR time-series for one activity, via the details endpoint. Best-effort.
+async function fetchHrSamples(
+  client: GarminConnect,
+  activityId: number,
+): Promise<{ t: number; hr: number }[] | undefined> {
+  const url = `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=120`;
+  const data = await client.get<{
+    metricDescriptors?: { metricsIndex: number; key: string }[];
+    activityDetailMetrics?: { metrics: (number | null)[] }[];
+  }>(url);
+  const descs = data?.metricDescriptors ?? [];
+  const rows = data?.activityDetailMetrics ?? [];
+  const hrIdx = descs.find((d) => d.key === "directHeartRate")?.metricsIndex;
+  const tIdx = descs.find((d) => d.key === "sumElapsedDuration")?.metricsIndex;
+  if (hrIdx == null) return undefined;
+
+  const samples: { t: number; hr: number }[] = [];
+  rows.forEach((row, i) => {
+    const hr = row.metrics?.[hrIdx];
+    if (typeof hr === "number" && hr > 0) {
+      const t = tIdx != null ? row.metrics?.[tIdx] : null;
+      samples.push({ t: typeof t === "number" ? Math.round(t) : i, hr: Math.round(hr) });
+    }
+  });
+  return samples.length ? samples : undefined;
 }
 
 async function targetUserId(db: DB): Promise<number> {
@@ -64,12 +100,23 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
 
   const acts = (await client.getActivities(0, 30)) as unknown as GarminActivity[];
   let activities = 0;
+  let hrFetched = 0;
   for (const a of acts) {
     const date = (a.startTimeLocal ?? "").slice(0, 10);
     if (!date) continue;
     const type = a.activityName || a.activityType?.typeKey || "Activity";
     const durationMinutes = a.duration ? Math.round(a.duration / 60) : null;
     const detail = activityDetail(a);
+    // Pull HR samples for the most recent few only (caps API calls per run).
+    if (hrFetched < 8) {
+      try {
+        const hrSamples = await fetchHrSamples(client, a.activityId);
+        if (hrSamples) detail.hrSamples = hrSamples;
+      } catch {
+        /* HR detail unavailable */
+      }
+      hrFetched++;
+    }
     await db
       .insert(workouts)
       .values({ userId, date, source: "garmin", externalId: String(a.activityId), type, durationMinutes, location: "outdoor", detail })

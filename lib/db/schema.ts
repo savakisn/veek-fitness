@@ -106,6 +106,7 @@ export const workouts = pgTable(
       calories?: number;
       distanceKm?: number;
       elevationM?: number;
+      hrSamples?: { t: number; hr: number }[];
     }>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
