@@ -5,6 +5,7 @@ import { exercises, routines, routineExercises, workouts } from "./schema";
 import type { Exercise, Routine, RoutineExercise, Workout, User } from "./schema";
 import { isOwned } from "../equipment";
 import { computeStreak, type StreakInfo } from "../streaks";
+import { computeTraining, type TrainingStatus } from "../load";
 
 export type Location = "home" | "gym";
 
@@ -109,6 +110,21 @@ export async function getWorkoutById(
     routineName = r?.name ?? null;
   }
   return { ...w, routineName };
+}
+
+export async function getTrainingLoad(userId: number): Promise<TrainingStatus> {
+  const db = await getDb();
+  const since = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+  const rows = await db
+    .select({
+      date: workouts.date,
+      durationMinutes: workouts.durationMinutes,
+      perceivedEffort: workouts.perceivedEffort,
+      detail: workouts.detail,
+    })
+    .from(workouts)
+    .where(and(eq(workouts.userId, userId), gte(workouts.date, since)));
+  return computeTraining(rows);
 }
 
 export async function getStreak(user: User): Promise<StreakInfo> {

@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { Flame, Plus, ChevronRight } from "lucide-react";
+import { Plus, ChevronRight } from "lucide-react";
 import { getLocation } from "@/lib/location";
 import { getCurrentUser } from "@/lib/auth";
-import { getStreak, getSuggestedRoutine, getRecentWorkouts } from "@/lib/db/queries";
+import { getTrainingLoad, getSuggestedRoutine, getRecentWorkouts } from "@/lib/db/queries";
 import { getLatestInsight, getLatestMetrics } from "@/lib/db/insights";
 import { PageHeader } from "@/components/page-header";
 import { DeviceMetrics } from "@/components/device-metrics";
+import { TrainingStatusCard } from "@/components/training-status-card";
 import { LocationToggle } from "@/components/location-toggle";
 import { RoutineCard } from "@/components/routine-card";
 import { InsightCard } from "@/components/insight-card";
 import { CoachSuggestion } from "@/components/coach-suggestion";
-import { Progress } from "@/components/ui/progress";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { prettyDate, todayISO } from "@/lib/format";
@@ -24,39 +24,20 @@ function greeting(): string {
 
 export default async function TodayPage() {
   const [location, user] = await Promise.all([getLocation(), getCurrentUser()]);
-  const [streak, suggested, recent, insight, deviceMetrics] = await Promise.all([
-    getStreak(user),
+  const [training, suggested, recent, insight, deviceMetrics] = await Promise.all([
+    getTrainingLoad(user.id),
     getSuggestedRoutine(location, user),
     getRecentWorkouts(user.id, 5),
     getLatestInsight(user.id, "weekly"),
     getLatestMetrics(user.id),
   ]);
 
-  const pct = Math.min(100, Math.round((streak.thisWeekCount / streak.weeklyGoal) * 100));
-
   return (
     <main>
       <PageHeader title={`${greeting()}, ${user.name}`} subtitle={prettyDate(todayISO())} />
 
       <div className="space-y-5 px-4">
-        <div className="bg-card rounded-2xl border p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Flame className={streak.streakWeeks > 0 ? "size-5 text-orange-500" : "text-muted-foreground size-5"} />
-              <span className="text-2xl font-semibold">{streak.streakWeeks}</span>
-              <span className="text-muted-foreground text-sm">week{streak.streakWeeks === 1 ? "" : "s"} streak</span>
-            </div>
-            <span className="text-muted-foreground text-sm">
-              {streak.thisWeekCount}/{streak.weeklyGoal} this week
-            </span>
-          </div>
-          <Progress value={pct} className="mt-4" />
-          <p className="text-muted-foreground mt-2 text-xs">
-            {streak.goalMetThisWeek
-              ? "Goal hit for the week. Anything more is a bonus."
-              : `${Math.max(0, streak.weeklyGoal - streak.thisWeekCount)} more to hit this week's goal.`}
-          </p>
-        </div>
+        <TrainingStatusCard status={training} />
 
         <DeviceMetrics metrics={deviceMetrics} />
 
