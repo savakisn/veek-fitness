@@ -1,12 +1,15 @@
 import { getLocation } from "@/lib/location";
+import { getCurrentUser } from "@/lib/auth";
 import { getRoutineCards } from "@/lib/db/queries";
 import { PageHeader } from "@/components/page-header";
 import { LocationToggle } from "@/components/location-toggle";
 import { RoutineCard } from "@/components/routine-card";
 
+export const dynamic = "force-dynamic";
+
 export default async function RoutinesPage() {
-  const location = await getLocation();
-  const cards = await getRoutineCards(location);
+  const [location, user] = await Promise.all([getLocation(), getCurrentUser()]);
+  const cards = await getRoutineCards(location, user);
   const available = cards.filter((c) => c.available);
   const locked = cards.filter((c) => !c.available);
 

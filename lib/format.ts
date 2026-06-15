@@ -5,6 +5,8 @@ export const GOAL_LABELS: Record<string, string> = {
   recovery: "Recovery",
   sport_prep: "Sport prep",
   strength: "Strength",
+  yoga: "Yoga",
+  pilates: "Pilates",
 };
 
 export function goalLabel(tag: string): string {

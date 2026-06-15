@@ -1,4 +1,5 @@
 import { getRecentWorkouts, getStreak } from "@/lib/db/queries";
+import { getCurrentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { DeleteWorkoutButton } from "@/components/delete-workout-button";
 import { prettyDate } from "@/lib/format";
@@ -8,7 +9,8 @@ export const dynamic = "force-dynamic";
 const EFFORT = ["", "Easy", "Light", "Moderate", "Hard", "All out"];
 
 export default async function HistoryPage() {
-  const [workouts, streak] = await Promise.all([getRecentWorkouts(100), getStreak()]);
+  const user = await getCurrentUser();
+  const [workouts, streak] = await Promise.all([getRecentWorkouts(user.id, 100), getStreak(user)]);
 
   return (
     <main>

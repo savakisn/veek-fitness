@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifyToken } from "@/lib/auth-token";
 
-// Single-user gate. Set PASSCODE in env for production; if it's unset (local dev)
-// the gate is open so there's nothing to log into. The cookie holds the passcode
-// itself, httpOnly, so it can't be forged without knowing it.
-export function middleware(req: NextRequest) {
-  const passcode = process.env.PASSCODE;
-  if (!passcode) return NextResponse.next();
-  if (req.cookies.get("vf_auth")?.value === passcode) return NextResponse.next();
+// Multi-user gate. Set AUTH_SECRET in prod; if it's unset (local dev) the gate is
+// open. The vf_user cookie is an HMAC-signed user id, verified here on the edge.
+export async function middleware(req: NextRequest) {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) return NextResponse.next();
+  const userId = await verifyToken(req.cookies.get("vf_user")?.value, secret);
+  if (userId) return NextResponse.next();
 
   const url = req.nextUrl.clone();
   url.pathname = "/login";

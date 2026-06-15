@@ -1,34 +1,15 @@
 import "server-only";
-import { eq, desc, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import { getDb } from "./index";
-import { exercises, routines, routineExercises, workouts, profile } from "./schema";
-import type { Exercise, Routine, RoutineExercise, Workout, Profile } from "./schema";
+import { exercises, routines, routineExercises, workouts } from "./schema";
+import type { Exercise, Routine, RoutineExercise, Workout, User } from "./schema";
 import { isOwned } from "../equipment";
 import { computeStreak, type StreakInfo } from "../streaks";
 
 export type Location = "home" | "gym";
 
-export async function getProfile(): Promise<Profile> {
-  const db = await getDb();
-  const [p] = await db.select().from(profile).where(eq(profile.id, 1));
-  if (p) return p;
-  // Defensive: if prod hasn't been seeded yet, hand back sane defaults.
-  const [created] = await db.insert(profile).values({ id: 1 }).onConflictDoNothing().returning();
-  return (
-    created ?? {
-      id: 1,
-      weeklyGoalSessions: 3,
-      homeEquipment: ["mat"],
-      gymEquipment: ["mat", "dumbbells", "barbell", "bench", "squat_rack", "pullup_bar", "bands", "kettlebell", "cable", "machine"],
-      householdSize: 2,
-      dietStyle: "healthier, easy, high-protein",
-      dislikes: [],
-    }
-  );
-}
-
-function ownedFor(p: Profile, location: Location): string[] {
-  return location === "gym" ? p.gymEquipment : p.homeEquipment;
+function ownedFor(user: User, location: Location): string[] {
+  return location === "gym" ? user.gymEquipment : user.homeEquipment;
 }
 
 export type RoutineCard = Routine & {
@@ -38,7 +19,6 @@ export type RoutineCard = Routine & {
 };
 
 // Required equipment for a routine is the union of its exercises' gear (minus "none").
-// A routine is available when you own all of it.
 async function routineRequirements(): Promise<Map<number, Set<string>>> {
   const db = await getDb();
   const rows = await db
@@ -54,10 +34,9 @@ async function routineRequirements(): Promise<Map<number, Set<string>>> {
   return req;
 }
 
-export async function getRoutineCards(location: Location): Promise<RoutineCard[]> {
+export async function getRoutineCards(location: Location, user: User): Promise<RoutineCard[]> {
   const db = await getDb();
-  const p = await getProfile();
-  const owned = ownedFor(p, location);
+  const owned = ownedFor(user, location);
   const all = await db.select().from(routines).orderBy(routines.id);
   const req = await routineRequirements();
 
@@ -96,11 +75,15 @@ export async function getRoutineDetail(slug: string): Promise<RoutineDetail | nu
   };
 }
 
-export async function getRecentWorkouts(limit = 30): Promise<(Workout & { routineName: string | null })[]> {
+export async function getRecentWorkouts(
+  userId: number,
+  limit = 30,
+): Promise<(Workout & { routineName: string | null })[]> {
   const db = await getDb();
   const rows = await db
     .select()
     .from(workouts)
+    .where(eq(workouts.userId, userId))
     .orderBy(desc(workouts.date), desc(workouts.id))
     .limit(limit);
 
@@ -113,30 +96,33 @@ export async function getRecentWorkouts(limit = 30): Promise<(Workout & { routin
   return rows.map((r) => ({ ...r, routineName: r.routineId ? nameById.get(r.routineId) ?? null : null }));
 }
 
-export async function getStreak(): Promise<StreakInfo> {
+export async function getStreak(user: User): Promise<StreakInfo> {
   const db = await getDb();
-  const p = await getProfile();
-  const rows = await db.select({ date: workouts.date }).from(workouts);
-  return computeStreak(rows.map((r) => r.date), p.weeklyGoalSessions);
+  const rows = await db.select({ date: workouts.date }).from(workouts).where(eq(workouts.userId, user.id));
+  return computeStreak(rows.map((r) => r.date), user.weeklyGoalSessions);
 }
 
 // Suggest something available you haven't done lately, so it stays varied.
-export async function getSuggestedRoutine(location: Location): Promise<RoutineCard | null> {
+export async function getSuggestedRoutine(location: Location, user: User): Promise<RoutineCard | null> {
   const db = await getDb();
-  const cards = (await getRoutineCards(location)).filter((c) => c.available);
+  const cards = (await getRoutineCards(location, user)).filter((c) => c.available);
   if (cards.length === 0) return null;
 
   const recent = await db
     .select({ routineId: workouts.routineId })
     .from(workouts)
-    .where(gte(workouts.date, new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10)))
+    .where(
+      and(
+        eq(workouts.userId, user.id),
+        gte(workouts.date, new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10)),
+      ),
+    )
     .orderBy(desc(workouts.date))
     .limit(5);
   const recentIds = new Set(recent.map((r) => r.routineId).filter((x) => x != null));
 
   const fresh = cards.filter((c) => !recentIds.has(c.id));
   const pool = fresh.length ? fresh : cards;
-  // Rotate by day so the same suggestion doesn't sit there all week.
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
   return pool[dayOfYear % pool.length];
 }

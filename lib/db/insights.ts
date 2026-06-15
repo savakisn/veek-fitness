@@ -1,8 +1,8 @@
 import "server-only";
-import { desc, gte, eq } from "drizzle-orm";
+import { desc, gte, eq, and } from "drizzle-orm";
 import { getDb } from "./index";
 import { workouts, routines, aiInsights } from "./schema";
-import type { AiInsight } from "./schema";
+import type { AiInsight, User } from "./schema";
 import { getStreak, getRecentWorkouts } from "./queries";
 
 export type FitnessStats = {
@@ -13,16 +13,16 @@ export type FitnessStats = {
   recentTypes: string[];
 };
 
-export async function getWeeklyStats(): Promise<FitnessStats> {
+export async function getWeeklyStats(user: User): Promise<FitnessStats> {
   const db = await getDb();
-  const [streak, recent] = await Promise.all([getStreak(), getRecentWorkouts(8)]);
+  const [streak, recent] = await Promise.all([getStreak(user), getRecentWorkouts(user.id, 8)]);
 
   const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const rows = await db
     .select({ goalTag: routines.goalTag, type: workouts.type })
     .from(workouts)
     .leftJoin(routines, eq(workouts.routineId, routines.id))
-    .where(gte(workouts.date, since));
+    .where(and(eq(workouts.userId, user.id), gte(workouts.date, since)));
 
   const byCategory: Record<string, number> = {};
   for (const r of rows) {
@@ -39,12 +39,12 @@ export async function getWeeklyStats(): Promise<FitnessStats> {
   };
 }
 
-export async function getLatestInsight(kind = "weekly"): Promise<AiInsight | null> {
+export async function getLatestInsight(userId: number, kind = "weekly"): Promise<AiInsight | null> {
   const db = await getDb();
   const [row] = await db
     .select()
     .from(aiInsights)
-    .where(eq(aiInsights.kind, kind))
+    .where(and(eq(aiInsights.userId, userId), eq(aiInsights.kind, kind)))
     .orderBy(desc(aiInsights.date), desc(aiInsights.id))
     .limit(1);
   return row ?? null;

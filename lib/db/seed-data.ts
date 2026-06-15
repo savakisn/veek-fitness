@@ -1,5 +1,5 @@
 import type { DB } from "./index";
-import { exercises, routines, routineExercises, profile } from "./schema";
+import { exercises, routines, routineExercises, users, household } from "./schema";
 
 type ExDef = {
   slug: string;
@@ -53,6 +53,17 @@ const EXERCISES: ExDef[] = [
   { slug: "jumping-jack", name: "Jumping Jack", category: "cardio", primaryMuscles: ["full body"], equipment: ["none"], backSafe: true, cues: "Soft landings. Step-jacks if the impact bothers you." },
   { slug: "mountain-climber", name: "Mountain Climber", category: "cardio", primaryMuscles: ["core"], equipment: ["mat"], backSafe: true, cues: "Solid plank, drive knees in, hips stay low." },
 
+  // Yoga / Pilates (mat) — Kate's home track
+  { slug: "downward-dog", name: "Downward Dog", category: "mobility", primaryMuscles: ["full body"], equipment: ["mat"], backSafe: true, cues: "Hips up and back, long spine, press the floor away, soften the knees." },
+  { slug: "cobra-pose", name: "Cobra", category: "mobility", primaryMuscles: ["spine"], equipment: ["mat"], backSafe: true, cues: "Gentle lift of the chest, elbows soft, no cranking the low back." },
+  { slug: "seated-twist", name: "Seated Spinal Twist", category: "mobility", primaryMuscles: ["spine"], equipment: ["mat"], backSafe: true, cues: "Tall spine, rotate from the mid-back, breathe into it." },
+  { slug: "forward-fold", name: "Standing Forward Fold", category: "stretch", primaryMuscles: ["hamstrings", "back"], equipment: ["mat"], backSafe: true, cues: "Soft knees, hinge from the hips, let the head hang heavy." },
+  { slug: "chair-pose", name: "Chair Pose", category: "strength", primaryMuscles: ["legs"], equipment: ["mat"], backSafe: true, cues: "Sit back like into a chair, weight in the heels, ribs down." },
+  { slug: "warrior-2", name: "Warrior II", category: "strength", primaryMuscles: ["legs", "hips"], equipment: ["mat"], backSafe: true, cues: "Front knee over ankle, arms long, gaze over the front hand." },
+  { slug: "pilates-hundred", name: "Pilates Hundred", category: "core", primaryMuscles: ["core"], equipment: ["mat"], backSafe: true, cues: "Low back pressed down, small fast arm pulses, steady breath." },
+  { slug: "pilates-roll-up", name: "Pilates Roll-Up", category: "core", primaryMuscles: ["core"], equipment: ["mat"], backSafe: true, cues: "Peel up one vertebra at a time, control all the way down." },
+  { slug: "leg-circles", name: "Single-Leg Circles", category: "core", primaryMuscles: ["core", "hips"], equipment: ["mat"], backSafe: true, cues: "Pelvis still, draw slow circles with one straight leg." },
+
   // Equipment (Gym track)
   { slug: "goblet-squat", name: "Goblet Squat", category: "strength", primaryMuscles: ["legs"], equipment: ["dumbbells"], backSafe: true, cues: "Hold one bell at the chest, sit between the hips, tall chest." },
   { slug: "dumbbell-rdl", name: "Dumbbell Romanian Deadlift", category: "strength", primaryMuscles: ["hamstrings", "glutes"], equipment: ["dumbbells"], backSafe: true, cues: "Hinge at the hips, flat back, feel the hamstrings, no rounding." },
@@ -67,7 +78,7 @@ type RoutineDef = {
   slug: string;
   name: string;
   description: string;
-  goalTag: "mobility" | "core" | "full_body" | "recovery" | "sport_prep" | "strength";
+  goalTag: "mobility" | "core" | "full_body" | "recovery" | "sport_prep" | "strength" | "yoga" | "pilates";
   estMinutes: number;
   difficulty: "easy" | "moderate";
   items: Rx[];
@@ -123,6 +134,26 @@ const ROUTINES: RoutineDef[] = [
     items: [hold("wall-sit", 45), work("bodyweight-squat", 15), work("lateral-lunge", 8), hold("single-leg-balance", 30), work("reverse-lunge", 10), work("calf-raise", 15)],
   },
   {
+    slug: "gentle-yoga-flow", name: "Gentle Yoga Flow", goalTag: "yoga", estMinutes: 20, difficulty: "easy",
+    description: "A slow, mat-based flow to loosen the whole body and calm down. Back-safe and beginner-friendly.",
+    items: [hold("cat-cow", 45), hold("downward-dog", 40), hold("cobra-pose", 30), hold("seated-twist", 40), hold("forward-fold", 40), hold("child-pose", 45)],
+  },
+  {
+    slug: "pilates-core", name: "Pilates Core", goalTag: "pilates", estMinutes: 20, difficulty: "moderate",
+    description: "Mat pilates for deep core control and a strong, protected back. No equipment.",
+    items: [hold("pilates-hundred", 40), work("dead-bug", 8), work("pilates-roll-up", 8), work("leg-circles", 10), work("glute-bridge", 12), hold("plank", 30)],
+  },
+  {
+    slug: "sun-salutation-flow", name: "Sun Salutation Flow", goalTag: "yoga", estMinutes: 15, difficulty: "easy",
+    description: "A flowing sequence to wake the body up. Move with the breath, repeat as many rounds as feel good.",
+    items: [hold("forward-fold", 30), hold("downward-dog", 40), hold("cobra-pose", 30), hold("chair-pose", 30), hold("warrior-2", 30), hold("child-pose", 45)],
+  },
+  {
+    slug: "standing-balance-flow", name: "Standing Balance Flow", goalTag: "yoga", estMinutes: 15, difficulty: "easy",
+    description: "Standing yoga shapes for strength and balance on a mat. Builds steadiness without any gear.",
+    items: [hold("warrior-2", 30), hold("chair-pose", 30), hold("single-leg-balance", 30), hold("forward-fold", 30), hold("cat-cow", 40)],
+  },
+  {
     slug: "gym-full-body", name: "Gym Full Body", goalTag: "strength", estMinutes: 35, difficulty: "moderate",
     description: "A simple full-body session for the days you make the 10-minute drive. Needs dumbbells, a bench, and a cable stack.",
     items: [work("goblet-squat", 10), work("dumbbell-rdl", 10), work("dumbbell-press", 10), work("dumbbell-row", 10), work("lat-pulldown", 12), hold("plank", 40)],
@@ -165,5 +196,14 @@ export async function seedDatabase(db: DB) {
     );
   }
 
-  await db.insert(profile).values({ id: 1 }).onConflictDoNothing();
+  // Two accounts (placeholder passcodes for local dev; prod sets the real ones)
+  // and the shared household. Kate's home track is mat-only (yoga/pilates).
+  await db
+    .insert(users)
+    .values([
+      { name: "Nick", passcode: "1111" },
+      { name: "Kate", passcode: "2222", homeEquipment: ["mat"] },
+    ])
+    .onConflictDoNothing();
+  await db.insert(household).values({ id: 1 }).onConflictDoNothing();
 }

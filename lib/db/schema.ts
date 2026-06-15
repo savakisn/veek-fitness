@@ -11,6 +11,39 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+// Each person: their own login, goals, and equipment. Fitness is per-user.
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  passcode: text("passcode").notNull().unique(),
+  weeklyGoalSessions: integer("weekly_goal_sessions").notNull().default(3),
+  homeEquipment: text("home_equipment").array().notNull().default(["mat"]),
+  gymEquipment: text("gym_equipment")
+    .array()
+    .notNull()
+    .default([
+      "mat",
+      "dumbbells",
+      "barbell",
+      "bench",
+      "squat_rack",
+      "pullup_bar",
+      "bands",
+      "kettlebell",
+      "cable",
+      "machine",
+    ]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Shared household: one fridge, one grocery list, one diet. Single row.
+export const household = pgTable("household", {
+  id: integer("id").primaryKey().default(1),
+  householdSize: integer("household_size").notNull().default(2),
+  dietStyle: text("diet_style").notNull().default("healthier, easy, high-protein"),
+  dislikes: text("dislikes").array().notNull().default([]),
+});
+
 // What an exercise needs and where it hits. equipment drives the Home/Gym filter.
 export const exercises = pgTable("exercises", {
   id: serial("id").primaryKey(),
@@ -28,7 +61,7 @@ export const routines = pgTable("routines", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  goalTag: text("goal_tag").notNull(), // mobility | core | full_body | recovery | sport_prep | strength
+  goalTag: text("goal_tag").notNull(), // mobility | core | full_body | recovery | sport_prep | strength | yoga | pilates
   estMinutes: integer("est_minutes").notNull().default(15),
   difficulty: text("difficulty").notNull().default("easy"),
 });
@@ -49,11 +82,14 @@ export const routineExercises = pgTable("routine_exercises", {
   notes: text("notes"),
 });
 
-// Unified activity log. Garmin rows land here too, deduped by (source, external_id).
+// Unified activity log, per user. Garmin rows land here too, deduped per user.
 export const workouts = pgTable(
   "workouts",
   {
     id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
     date: date("date").notNull(),
     source: text("source").notNull().default("manual"), // manual | routine | garmin
     routineId: integer("routine_id").references(() => routines.id),
@@ -65,14 +101,17 @@ export const workouts = pgTable(
     externalId: text("external_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("workouts_source_external_uniq").on(t.source, t.externalId)],
+  (t) => [uniqueIndex("workouts_user_source_external_uniq").on(t.userId, t.source, t.externalId)],
 );
 
-// Generic time-series store. Every number, any source, charted over any range later.
+// Generic time-series store, per user. Every number, any source, charted later.
 export const metrics = pgTable(
   "metrics",
   {
     id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
     date: date("date").notNull(),
     metricType: text("metric_type").notNull(), // steps | resting_hr | sleep_hours | weight | ...
     value: real("value").notNull(),
@@ -80,37 +119,11 @@ export const metrics = pgTable(
     source: text("source").notNull().default("manual"),
   },
   (t) => [
-    uniqueIndex("metrics_date_type_source_uniq").on(t.date, t.metricType, t.source),
+    uniqueIndex("metrics_user_date_type_source_uniq").on(t.userId, t.date, t.metricType, t.source),
   ],
 );
 
-// Single-row settings. Two equipment profiles so Home grows and Gym already has everything.
-export const profile = pgTable("profile", {
-  id: integer("id").primaryKey().default(1),
-  weeklyGoalSessions: integer("weekly_goal_sessions").notNull().default(3),
-  homeEquipment: text("home_equipment").array().notNull().default(["mat"]),
-  gymEquipment: text("gym_equipment")
-    .array()
-    .notNull()
-    .default([
-      "mat",
-      "dumbbells",
-      "barbell",
-      "bench",
-      "squat_rack",
-      "pullup_bar",
-      "bands",
-      "kettlebell",
-      "cable",
-      "machine",
-    ]),
-  // Kitchen prefs
-  householdSize: integer("household_size").notNull().default(2),
-  dietStyle: text("diet_style").notNull().default("healthier, easy, high-protein"),
-  dislikes: text("dislikes").array().notNull().default([]),
-});
-
-// Kitchen: what's on hand, sorted by use-by to cut waste.
+// Kitchen (shared household): what's on hand, feeds the Cook tab.
 export const pantryItems = pgTable("pantry_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -121,7 +134,7 @@ export const pantryItems = pgTable("pantry_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// A generated weekly plan, stored as JSON (days[] of meals).
+// A generated set of meal ideas for the week, stored as JSON.
 export const mealPlans = pgTable("meal_plans", {
   id: serial("id").primaryKey(),
   weekStart: date("week_start").notNull(),
@@ -137,7 +150,7 @@ export const groceryItems = pgTable("grocery_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Remembered taste: thumbs up/down on meals so future plans lean toward what he likes.
+// Remembered taste (shared): thumbs up/down on meals steer future plans.
 export const mealFeedback = pgTable(
   "meal_feedback",
   {
@@ -149,25 +162,29 @@ export const mealFeedback = pgTable(
   (t) => [uniqueIndex("meal_feedback_name_uniq").on(t.name)],
 );
 
-// Cached AI text (e.g. the weekly fitness summary), one row per kind+date.
+// Cached AI text per user (e.g. the weekly fitness summary).
 export const aiInsights = pgTable(
   "ai_insights",
   {
     id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
     kind: text("kind").notNull(),
     date: date("date").notNull(),
     text: text("text").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("ai_insights_kind_date_uniq").on(t.kind, t.date)],
+  (t) => [uniqueIndex("ai_insights_user_kind_date_uniq").on(t.userId, t.kind, t.date)],
 );
 
+export type User = typeof users.$inferSelect;
+export type Household = typeof household.$inferSelect;
 export type Exercise = typeof exercises.$inferSelect;
 export type Routine = typeof routines.$inferSelect;
 export type RoutineExercise = typeof routineExercises.$inferSelect;
 export type Workout = typeof workouts.$inferSelect;
 export type Metric = typeof metrics.$inferSelect;
-export type Profile = typeof profile.$inferSelect;
 export type PantryItem = typeof pantryItems.$inferSelect;
 export type MealPlanRow = typeof mealPlans.$inferSelect;
 export type GroceryItem = typeof groceryItems.$inferSelect;

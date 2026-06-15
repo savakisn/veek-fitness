@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { eq, and } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { workouts, profile, aiInsights } from "@/lib/db/schema";
+import { workouts, users, household, aiInsights } from "@/lib/db/schema";
+import { getCurrentUser } from "@/lib/auth";
 import { getWeeklyStats } from "@/lib/db/insights";
 import { generateText, AiUnavailableError } from "@/lib/ai";
 import { fitnessSummaryPrompt } from "@/lib/ai/prompts";
@@ -21,6 +23,11 @@ export async function setLocation(location: "home" | "gym") {
   revalidatePath("/routines");
 }
 
+export async function logout() {
+  (await cookies()).delete("vf_user");
+  redirect("/login");
+}
+
 export type LogWorkoutInput = {
   date: string;
   source?: "manual" | "routine";
@@ -34,7 +41,9 @@ export type LogWorkoutInput = {
 
 export async function logWorkout(input: LogWorkoutInput) {
   const db = await getDb();
+  const user = await getCurrentUser();
   await db.insert(workouts).values({
+    userId: user.id,
     date: input.date,
     source: input.source ?? "manual",
     routineId: input.routineId ?? null,
@@ -50,15 +59,17 @@ export async function logWorkout(input: LogWorkoutInput) {
 
 export async function deleteWorkout(id: number) {
   const db = await getDb();
-  await db.delete(workouts).where(eq(workouts.id, id));
+  const user = await getCurrentUser();
+  await db.delete(workouts).where(and(eq(workouts.id, id), eq(workouts.userId, user.id)));
   revalidatePath("/");
   revalidatePath("/history");
 }
 
 export async function updateEquipment(location: "home" | "gym", items: string[]) {
   const db = await getDb();
+  const user = await getCurrentUser();
   const col = location === "gym" ? { gymEquipment: items } : { homeEquipment: items };
-  await db.update(profile).set(col).where(eq(profile.id, 1));
+  await db.update(users).set(col).where(eq(users.id, user.id));
   revalidatePath("/");
   revalidatePath("/routines");
   revalidatePath("/settings");
@@ -66,7 +77,8 @@ export async function updateEquipment(location: "home" | "gym", items: string[])
 
 export async function updateWeeklyGoal(goal: number) {
   const db = await getDb();
-  await db.update(profile).set({ weeklyGoalSessions: goal }).where(eq(profile.id, 1));
+  const user = await getCurrentUser();
+  await db.update(users).set({ weeklyGoalSessions: goal }).where(eq(users.id, user.id));
   revalidatePath("/");
   revalidatePath("/settings");
 }
@@ -74,9 +86,9 @@ export async function updateWeeklyGoal(goal: number) {
 export async function updateKitchenPrefs(input: { householdSize: number; dislikes: string[] }) {
   const db = await getDb();
   await db
-    .update(profile)
+    .update(household)
     .set({ householdSize: input.householdSize, dislikes: input.dislikes })
-    .where(eq(profile.id, 1));
+    .where(eq(household.id, 1));
   revalidatePath("/settings");
   revalidatePath("/kitchen");
 }
@@ -85,14 +97,15 @@ export async function refreshFitnessInsight(): Promise<
   { ok: true; text: string } | { ok: false; error: string }
 > {
   try {
-    const stats = await getWeeklyStats();
+    const user = await getCurrentUser();
+    const stats = await getWeeklyStats(user);
     const { system, prompt } = fitnessSummaryPrompt(stats);
     const text = await generateText(prompt, system);
     const db = await getDb();
     await db
       .insert(aiInsights)
-      .values({ kind: "weekly", date: todayISO(), text })
-      .onConflictDoUpdate({ target: [aiInsights.kind, aiInsights.date], set: { text } });
+      .values({ userId: user.id, kind: "weekly", date: todayISO(), text })
+      .onConflictDoUpdate({ target: [aiInsights.userId, aiInsights.kind, aiInsights.date], set: { text } });
     revalidatePath("/");
     return { ok: true, text };
   } catch (e) {

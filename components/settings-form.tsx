@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { EQUIPMENT } from "@/lib/equipment";
 import { updateEquipment, updateWeeklyGoal, updateKitchenPrefs } from "@/app/actions";
-import type { Profile } from "@/lib/db/schema";
+import type { User, Household } from "@/lib/db/schema";
 
-function KitchenPrefs({ profile }: { profile: Profile }) {
-  const [household, setHousehold] = useState(profile.householdSize);
-  const [dislikes, setDislikes] = useState(profile.dislikes.join(", "));
+function KitchenPrefs({ household: hh }: { household: Household }) {
+  const [household, setHousehold] = useState(hh.householdSize);
+  const [dislikes, setDislikes] = useState(hh.dislikes.join(", "));
   const [, start] = useTransition();
 
   function save(nextHousehold: number, nextDislikes: string) {
@@ -99,8 +99,8 @@ function EquipmentList({
   );
 }
 
-export function SettingsForm({ profile }: { profile: Profile }) {
-  const [goal, setGoal] = useState(profile.weeklyGoalSessions);
+export function SettingsForm({ user, household }: { user: User; household: Household }) {
+  const [goal, setGoal] = useState(user.weeklyGoalSessions);
   const [, start] = useTransition();
 
   function setWeeklyGoal(n: number) {
@@ -136,19 +136,20 @@ export function SettingsForm({ profile }: { profile: Profile }) {
       <section className="space-y-2">
         <Label>Home equipment</Label>
         <p className="text-muted-foreground text-sm">What you have at home. Routines unlock as you add gear.</p>
-        <EquipmentList location="home" owned={profile.homeEquipment} />
+        <EquipmentList location="home" owned={user.homeEquipment} />
       </section>
 
       <section className="space-y-2">
         <Label>Gym equipment</Label>
         <p className="text-muted-foreground text-sm">What the gym has. Used when you switch to the Gym track.</p>
-        <EquipmentList location="gym" owned={profile.gymEquipment} />
+        <EquipmentList location="gym" owned={user.gymEquipment} />
       </section>
 
       <div>
         <Label className="text-base">Kitchen</Label>
+        <p className="text-muted-foreground mt-0.5 text-sm">Shared with the household.</p>
         <div className="mt-3">
-          <KitchenPrefs profile={profile} />
+          <KitchenPrefs household={household} />
         </div>
       </div>
     </div>

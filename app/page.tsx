@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Flame, Plus, ChevronRight } from "lucide-react";
 import { getLocation } from "@/lib/location";
+import { getCurrentUser } from "@/lib/auth";
 import { getStreak, getSuggestedRoutine, getRecentWorkouts } from "@/lib/db/queries";
 import { getLatestInsight } from "@/lib/db/insights";
 import { PageHeader } from "@/components/page-header";
@@ -20,19 +21,19 @@ function greeting(): string {
 }
 
 export default async function TodayPage() {
-  const location = await getLocation();
+  const [location, user] = await Promise.all([getLocation(), getCurrentUser()]);
   const [streak, suggested, recent, insight] = await Promise.all([
-    getStreak(),
-    getSuggestedRoutine(location),
-    getRecentWorkouts(5),
-    getLatestInsight("weekly"),
+    getStreak(user),
+    getSuggestedRoutine(location, user),
+    getRecentWorkouts(user.id, 5),
+    getLatestInsight(user.id, "weekly"),
   ]);
 
   const pct = Math.min(100, Math.round((streak.thisWeekCount / streak.weeklyGoal) * 100));
 
   return (
     <main>
-      <PageHeader title={greeting()} subtitle={prettyDate(todayISO())} />
+      <PageHeader title={`${greeting()}, ${user.name}`} subtitle={prettyDate(todayISO())} />
 
       <div className="space-y-5 px-4">
         <div className="bg-card rounded-2xl border p-5">
