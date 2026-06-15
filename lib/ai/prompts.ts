@@ -51,10 +51,12 @@ export function mealPlanPrompt(opts: {
   pantry: string[];
   liked: string[];
   disliked: string[];
+  note?: string;
 }): { system: string; prompt: string } {
   const prompt = [
-    `Suggest 3-4 easy, high-protein dinner ideas for the week for ${opts.household} people. Diet leaning: ${opts.dietStyle}.`,
-    "Mix a couple of interesting NEW ideas with a couple of easy STAPLES they can repeat. NOT one different meal per day.",
+    `Suggest a short week of easy, high-protein dinner ideas for ${opts.household} people. Diet leaning: ${opts.dietStyle}.`,
+    "Default to about 3 ideas, a couple of easy STAPLES they can repeat plus an interesting NEW one. NOT one different meal per day.",
+    opts.note ? `This week's situation (honor it, including any number of meals or extra-easy request): ${opts.note}.` : "",
     dislikeLine(opts.dislikes),
     ...tasteLines(opts.liked, opts.disliked),
     opts.pantry.length ? `Lean on what's already on hand where it helps: ${opts.pantry.join(", ")}.` : "",
@@ -65,6 +67,22 @@ export function mealPlanPrompt(opts: {
   ]
     .filter(Boolean)
     .join("\n");
+  return { system: KITCHEN_SYSTEM, prompt };
+}
+
+// One full recipe for a dish the user typed in ("add something else").
+export function recipeForPrompt(opts: {
+  name: string;
+  household: number;
+  dislikes: string[];
+}): { system: string; prompt: string } {
+  const prompt = [
+    `Write one easy, high-protein recipe for "${opts.name}" for ${opts.household} people.`,
+    dislikeLine(opts.dislikes),
+    "Return JSON exactly like:",
+    `{"meal":{"name":"${opts.name}","kind":"new","blurb":"one friendly sentence","proteinGrams":40,"prepMinutes":25,"ingredients":[{"item":"","quantity":""}],"steps":["short step"]}}`,
+    "Keep steps to 3-5 short lines. Use real, specific quantities so it can build a grocery list.",
+  ].join("\n");
   return { system: KITCHEN_SYSTEM, prompt };
 }
 

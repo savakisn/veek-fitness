@@ -15,7 +15,7 @@ import {
 } from "@/lib/db/kitchen";
 import { generateJSON } from "@/lib/ai";
 import { AiUnavailableError } from "@/lib/ai";
-import { mealPlanPrompt, fridgePrompt, replacementMealPrompt } from "@/lib/ai/prompts";
+import { mealPlanPrompt, fridgePrompt, replacementMealPrompt, recipeForPrompt } from "@/lib/ai/prompts";
 import type { WeeklyMealPlan, FridgeResult, RecipeSuggestion, PlannedMeal } from "@/lib/ai/prompts";
 
 function aiError(e: unknown): string {
@@ -123,7 +123,7 @@ export async function replaceMealInPlan(name: string): Promise<{ ok: boolean }> 
   return { ok: true };
 }
 
-export async function generateMealPlan(): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function generateMealPlan(note?: string): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const [h, pantry, feedback] = await Promise.all([getHousehold(), getPantry(), getMealFeedback()]);
     const taste = splitFeedback(feedback);
@@ -134,11 +134,42 @@ export async function generateMealPlan(): Promise<{ ok: true } | { ok: false; er
       pantry: pantry.map((i) => i.name),
       liked: taste.liked,
       disliked: taste.disliked,
+      note: note?.trim() || undefined,
     });
     const plan = await generateJSON<WeeklyMealPlan>(prompt, system);
     const db = await getDb();
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString().slice(0, 10);
     await db.insert(mealPlans).values({ weekStart, plan });
+    revalidatePath("/kitchen");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: aiError(e) };
+  }
+}
+
+// Add a specific dish the user typed; AI fills in the real recipe so it can
+// flow into the grocery list. Appends to the current plan (or starts one).
+export async function addMealToPlan(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const n = name.trim();
+  if (!n) return { ok: false, error: "Type a meal first." };
+  try {
+    const [h, plan] = await Promise.all([getHousehold(), getCurrentMealPlan()]);
+    const { system, prompt } = recipeForPrompt({ name: n, household: h.householdSize, dislikes: h.dislikes });
+    const res = await generateJSON<{ meal: PlannedMeal }>(prompt, system);
+    if (!res?.meal?.name) return { ok: false, error: "Couldn't build that recipe. Try again." };
+    const meals = [...(plan?.meals ?? []), res.meal];
+    const db = await getDb();
+    const [row] = await db
+      .select({ id: mealPlans.id })
+      .from(mealPlans)
+      .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+      .limit(1);
+    if (row) {
+      await db.update(mealPlans).set({ plan: { meals } }).where(eq(mealPlans.id, row.id));
+    } else {
+      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString().slice(0, 10);
+      await db.insert(mealPlans).values({ weekStart, plan: { meals } });
+    }
     revalidatePath("/kitchen");
     return { ok: true };
   } catch (e) {
