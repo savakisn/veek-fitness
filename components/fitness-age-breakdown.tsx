@@ -21,29 +21,20 @@ export function FitnessAgeBreakdownCard({ b }: { b: FitnessAgeBreakdown }) {
 
       <div className="mt-2 divide-y">
         <Row label="Your age" value={`${b.age} yrs`} />
-        <Row label="Resting HR" value={`${b.hrRest} bpm`} />
-        <Row
-          label="Max HR"
-          value={`${b.hrMax} bpm`}
-          note={b.hrMaxEstimated ? "estimated" : "from activities"}
-        />
-        <Row label="Est. VO₂max" value={String(b.vo2max)} note="15 × HRmax/HRrest" />
+        {b.vo2Source === "estimated" && b.hrRest != null && <Row label="Resting HR" value={`${b.hrRest} bpm`} />}
+        {b.vo2Source === "estimated" && b.hrMax != null && <Row label="Max HR" value={`${b.hrMax} bpm`} />}
+        <Row label="VO₂max" value={String(b.vo2max)} note={b.vo2Source === "garmin" ? "from Garmin" : "estimated"} />
         <Row label="VO₂max age" value={`${b.baseAge} yrs`} note="vs male norms" />
         {b.bmi != null && (
-          <Row
-            label="BMI"
-            value={String(b.bmi)}
-            note={b.bmiAdjust ? `+${b.bmiAdjust} yrs` : "neutral"}
-          />
+          <Row label="BMI" value={String(b.bmi)} note={b.bmiAdjust ? `+${b.bmiAdjust} yrs` : "neutral"} />
         )}
         <Row label="Fitness age" value={`${b.fitnessAge} yrs`} note={delta <= 0 ? `${delta} vs age` : `+${delta} vs age`} />
       </div>
 
       <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-        VO₂max comes from the heart-rate-ratio method, mapped to male population norms, then adjusted for BMI.
-        {b.hrMaxEstimated
-          ? " Max HR is age-estimated for now and will sharpen once you record a hard effort."
-          : ""}
+        {b.vo2Source === "garmin"
+          ? "Uses Garmin's VO₂max, mapped to male population norms and adjusted for BMI — so it tracks close to Garmin's own fitness age."
+          : "VO₂max is estimated from your resting and max heart rate (Garmin's VO₂max wasn't available yet), mapped to male norms and adjusted for BMI. It sharpens once Garmin computes a VO₂max from a run or ride."}
       </p>
     </div>
   );

@@ -98,6 +98,19 @@ async function targetUserId(db: DB): Promise<number> {
   return first.id;
 }
 
+// Garmin's own VO2max for a date (the basis of its fitness age). Best-effort.
+async function pullVo2Max(db: DB, client: GarminConnect, userId: number, dateStr: string): Promise<void> {
+  try {
+    const mm = await client.get<{ generic?: { vo2MaxPreciseValue?: number; vo2MaxValue?: number } }>(
+      `https://connectapi.garmin.com/metrics-service/metrics/maxmet/latest/${dateStr}`,
+    );
+    const vo2 = mm?.generic?.vo2MaxPreciseValue ?? mm?.generic?.vo2MaxValue;
+    if (typeof vo2 === "number" && vo2 > 0) await upsertMetric(db, userId, dateStr, "vo2max", Math.round(vo2 * 10) / 10);
+  } catch {
+    /* vo2max unavailable */
+  }
+}
+
 async function upsertMetric(db: DB, userId: number, date: string, metricType: string, value: number) {
   await db
     .insert(metrics)
@@ -193,7 +206,8 @@ export async function fetchLiveMetrics(): Promise<{ updated: number }> {
   } catch {
     /* body battery unavailable */
   }
-  // Recompute fitness age each open so it tracks resting HR like body battery.
+  // Recompute fitness age each open. Pull Garmin's VO2max first so it's the input.
+  await pullVo2Max(db, client, userId, todayStr);
   try {
     if (await upsertFitnessAge(db, userId)) updated++;
   } catch {
@@ -386,7 +400,8 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     /* body battery unavailable */
   }
 
-  // Derived fitness age (needs resting HR + weight above), best-effort.
+  // Derived fitness age, from Garmin's VO2max when available, best-effort.
+  await pullVo2Max(db, client, userId, new Date().toISOString().slice(0, 10));
   try {
     if (await upsertFitnessAge(db, userId)) metricCount++;
   } catch {
