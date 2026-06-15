@@ -4,7 +4,7 @@ import { verifyToken } from "@/lib/auth-token";
 import { syncGarmin } from "@/lib/garmin";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // The daily Vercel cron hits GET with the CRON_SECRET bearer. The app's "Sync
 // now" button hits POST as a logged-in user. Either path triggers a full sync.

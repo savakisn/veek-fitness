@@ -230,12 +230,17 @@ export async function fetchBodyBatteryToday(): Promise<{ ts: number; level: numb
     );
     const out: { ts: number; level: number }[] = [];
     for (const e of r?.bodyBatteryValuesArray ?? []) {
-      const ts = Number(e[0]);
-      const level = Number(e[e.length - 1]);
-      // Raw GMT ms; the client converts to local hours so the curve lines up.
-      if (Number.isFinite(ts) && Number.isFinite(level) && level >= 0 && level <= 100) {
-        out.push({ ts, level });
+      const ts = Number(e[0]); // first element is the GMT ms timestamp (huge number)
+      if (!Number.isFinite(ts)) continue;
+      // Among the rest, the body battery level is the plausible 0-100 number;
+      // ignore small status codes by taking the largest valid candidate.
+      let level = -1;
+      for (let i = 1; i < e.length; i++) {
+        const n = Number(e[i]);
+        if (Number.isFinite(n) && n >= 0 && n <= 100 && n > level) level = n;
       }
+      // Client converts ts to local hours so the curve lines up with the day.
+      if (level >= 0) out.push({ ts, level });
     }
     return out;
   } catch {
@@ -321,31 +326,38 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   } catch {
     /* heart rate unavailable */
   }
-  try {
-    const sleep = (await client.getSleepData(day)) as unknown as {
-      dailySleepDTO?: {
-        sleepTimeSeconds?: number;
-        sleepScores?: { overall?: { value?: number }; overallScore?: number };
-      };
-      sleepScores?: { overall?: { value?: number } };
+  // Garmin labels a night's sleep by the wake date, so last night's sleep is
+  // dated today. Try today first, fall back to yesterday.
+  type SleepResp = {
+    dailySleepDTO?: {
+      calendarDate?: string;
+      sleepTimeSeconds?: number;
+      sleepScores?: { overall?: { value?: number }; overallScore?: number };
     };
-    const dto = sleep?.dailySleepDTO;
-    const secs = dto?.sleepTimeSeconds;
-    if (typeof secs === "number" && secs > 0) {
-      await upsertMetric(db, userId, dayStr, "sleep_hours", Math.round((secs / 3600) * 10) / 10);
-      metricCount++;
+    sleepScores?: { overall?: { value?: number } };
+  };
+  for (const d of [new Date(), day]) {
+    try {
+      const sleep = (await client.getSleepData(d)) as unknown as SleepResp;
+      const dto = sleep?.dailySleepDTO;
+      const secs = dto?.sleepTimeSeconds;
+      const score =
+        dto?.sleepScores?.overall?.value ?? dto?.sleepScores?.overallScore ?? sleep?.sleepScores?.overall?.value;
+      if ((typeof secs === "number" && secs > 0) || (typeof score === "number" && score > 0)) {
+        const sleepDate = dto?.calendarDate?.slice(0, 10) ?? d.toISOString().slice(0, 10);
+        if (typeof secs === "number" && secs > 0) {
+          await upsertMetric(db, userId, sleepDate, "sleep_hours", Math.round((secs / 3600) * 10) / 10);
+          metricCount++;
+        }
+        if (typeof score === "number" && score > 0) {
+          await upsertMetric(db, userId, sleepDate, "sleep_score", score);
+          metricCount++;
+        }
+        break; // got a night, stop
+      }
+    } catch {
+      /* sleep unavailable for this date */
     }
-    // Sleep score lives under a few shapes depending on device/firmware.
-    const score =
-      dto?.sleepScores?.overall?.value ??
-      dto?.sleepScores?.overallScore ??
-      sleep?.sleepScores?.overall?.value;
-    if (typeof score === "number" && score > 0) {
-      await upsertMetric(db, userId, dayStr, "sleep_score", score);
-      metricCount++;
-    }
-  } catch {
-    /* sleep unavailable */
   }
   // Weight: Garmin is now a one-time history backfill only. Manual entries are
   // the source of truth, so only fill dates that have no weight reading yet.
