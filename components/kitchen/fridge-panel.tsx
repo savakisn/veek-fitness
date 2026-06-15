@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fridgeToRecipe, addPantryItem, deletePantryItem } from "@/app/kitchen/actions";
 import { MealRating, type Sentiment } from "./meal-rating";
+import { SaveRecipeButton } from "./save-recipe-button";
 import type { RecipeSuggestion } from "@/lib/ai/prompts";
 import type { PantryItem } from "@/lib/db/schema";
 
@@ -93,7 +94,18 @@ export function FridgePanel({
           <div key={i} className="bg-card rounded-xl border p-4">
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-medium">{r.name}</h3>
-              <MealRating name={r.name} current={feedback[r.name] ?? null} />
+              <div className="flex items-center gap-0.5">
+                <SaveRecipeButton
+                  recipe={{
+                    name: r.name,
+                    blurb: r.blurb,
+                    proteinGrams: r.proteinGrams,
+                    prepMinutes: r.prepMinutes,
+                    items: [...(r.usesFromPantry ?? []), ...(r.alsoNeed ?? [])].map((s) => ({ item: s })),
+                  }}
+                />
+                <MealRating name={r.name} current={feedback[r.name] ?? null} />
+              </div>
             </div>
             {r.blurb && <p className="text-muted-foreground mt-0.5 text-sm">{r.blurb}</p>}
             <div className="text-muted-foreground mt-2 flex items-center gap-3 text-xs">

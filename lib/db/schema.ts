@@ -162,6 +162,21 @@ export const mealFeedback = pgTable(
   (t) => [uniqueIndex("meal_feedback_name_uniq").on(t.name)],
 );
 
+// Recipes saved to the household "Menu" — re-add to grocery, prune when bored of it.
+export const savedRecipes = pgTable(
+  "saved_recipes",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    blurb: text("blurb"),
+    proteinGrams: integer("protein_grams"),
+    prepMinutes: integer("prep_minutes"),
+    items: jsonb("items").$type<{ item: string; quantity?: string }[]>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("saved_recipes_name_uniq").on(t.name)],
+);
+
 // Cached AI text per user (e.g. the weekly fitness summary).
 export const aiInsights = pgTable(
   "ai_insights",
@@ -190,3 +205,4 @@ export type MealPlanRow = typeof mealPlans.$inferSelect;
 export type GroceryItem = typeof groceryItems.$inferSelect;
 export type AiInsight = typeof aiInsights.$inferSelect;
 export type MealFeedback = typeof mealFeedback.$inferSelect;
+export type SavedRecipe = typeof savedRecipes.$inferSelect;

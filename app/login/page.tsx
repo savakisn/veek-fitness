@@ -12,7 +12,7 @@ export default async function LoginPage({
     <main className="flex min-h-dvh flex-col items-center justify-center px-6">
       <div className="w-full max-w-xs space-y-6 text-center">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Veek Fitness</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Cadence</h1>
           <p className="text-muted-foreground mt-1 text-sm">Enter your passcode</p>
         </div>
         <form action={login} className="space-y-3">

@@ -4,8 +4,15 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { startOfWeek } from "date-fns";
 import { getDb } from "@/lib/db";
-import { pantryItems, mealPlans, groceryItems, mealFeedback } from "@/lib/db/schema";
-import { getPantry, getCurrentMealPlan, getMealFeedback, splitFeedback, getHousehold } from "@/lib/db/kitchen";
+import { pantryItems, mealPlans, groceryItems, mealFeedback, savedRecipes } from "@/lib/db/schema";
+import {
+  getPantry,
+  getCurrentMealPlan,
+  getMealFeedback,
+  splitFeedback,
+  getHousehold,
+  getGrocery,
+} from "@/lib/db/kitchen";
 import { generateJSON } from "@/lib/ai";
 import { AiUnavailableError } from "@/lib/ai";
 import { mealPlanPrompt, fridgePrompt } from "@/lib/ai/prompts";
@@ -14,6 +21,12 @@ import type { WeeklyMealPlan, FridgeResult, RecipeSuggestion } from "@/lib/ai/pr
 function aiError(e: unknown): string {
   if (e instanceof AiUnavailableError) return "AI isn't set up yet. Add ANTHROPIC_API_KEY to enable it.";
   return "The AI had trouble with that. Try again.";
+}
+
+// Combine quantity strings for the same item into one ("1 lb" + "0.5 lb").
+function mergeQty(qtys: string[]): string | null {
+  const uniq = [...new Set(qtys.map((q) => q.trim()).filter(Boolean))];
+  return uniq.length ? uniq.join(" + ") : null;
 }
 
 // --- Pantry ---
@@ -109,21 +122,81 @@ export async function buildGroceryFromPlan(): Promise<{ ok: true; count: number 
   const pantryNames = (await getPantry()).map((i) => i.name.toLowerCase());
   const have = (key: string) => pantryNames.some((pn) => pn.includes(key) || key.includes(pn));
 
-  const seen = new Map<string, { name: string; quantity: string | null }>();
+  // Merge the same ingredient across meals into one line with combined quantity.
+  const agg = new Map<string, { name: string; qtys: string[] }>();
   for (const m of plan.meals ?? []) {
     for (const ing of m.ingredients ?? []) {
-      const key = ing.item?.trim().toLowerCase();
-      if (!key || have(key)) continue;
-      if (!seen.has(key)) seen.set(key, { name: ing.item.trim(), quantity: ing.quantity || null });
+      const name = ing.item?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (have(key)) continue;
+      const entry = agg.get(key) ?? { name, qtys: [] };
+      if (ing.quantity) entry.qtys.push(ing.quantity);
+      agg.set(key, entry);
     }
   }
 
   const db = await getDb();
   await db.delete(groceryItems);
-  const vals = [...seen.values()];
+  const vals = [...agg.values()].map((e) => ({ name: e.name, quantity: mergeQty(e.qtys) }));
   if (vals.length) await db.insert(groceryItems).values(vals);
   revalidatePath("/kitchen");
   return { ok: true, count: vals.length };
+}
+
+// --- Menu (saved recipes) ---
+export async function saveRecipe(input: {
+  name: string;
+  blurb?: string | null;
+  proteinGrams?: number | null;
+  prepMinutes?: number | null;
+  items: { item: string; quantity?: string }[];
+}) {
+  const db = await getDb();
+  const name = input.name.trim();
+  if (!name) return;
+  const row = {
+    blurb: input.blurb ?? null,
+    proteinGrams: input.proteinGrams ?? null,
+    prepMinutes: input.prepMinutes ?? null,
+    items: input.items ?? [],
+  };
+  await db
+    .insert(savedRecipes)
+    .values({ name, ...row })
+    .onConflictDoUpdate({ target: savedRecipes.name, set: row });
+  revalidatePath("/kitchen");
+}
+
+export async function deleteSavedRecipe(id: number) {
+  const db = await getDb();
+  await db.delete(savedRecipes).where(eq(savedRecipes.id, id));
+  revalidatePath("/kitchen");
+}
+
+export async function addSavedToGrocery(
+  id: number,
+): Promise<{ ok: true; added: number } | { ok: false; error: string }> {
+  const db = await getDb();
+  const [recipe] = await db.select().from(savedRecipes).where(eq(savedRecipes.id, id));
+  if (!recipe) return { ok: false, error: "Recipe not found." };
+
+  const byName = new Map((await getGrocery()).map((g) => [g.name.toLowerCase(), g]));
+  let added = 0;
+  for (const it of recipe.items ?? []) {
+    const name = it.item?.trim();
+    if (!name) continue;
+    const match = byName.get(name.toLowerCase());
+    if (match) {
+      const merged = mergeQty([match.quantity ?? "", it.quantity ?? ""]);
+      await db.update(groceryItems).set({ quantity: merged }).where(eq(groceryItems.id, match.id));
+    } else {
+      await db.insert(groceryItems).values({ name, quantity: it.quantity ?? null });
+      added++;
+    }
+  }
+  revalidatePath("/kitchen");
+  return { ok: true, added };
 }
 
 export async function toggleGrocery(id: number, checked: boolean) {

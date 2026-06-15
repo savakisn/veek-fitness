@@ -15,10 +15,10 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "Veek Fitness",
-  description: "Stay mobile, protect your back, keep moving.",
+  title: "Cadence",
+  description: "Move well, eat well, together.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Veek" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Cadence" },
 };
 
 export const viewport: Viewport = {

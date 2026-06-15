@@ -1,9 +1,14 @@
 import "server-only";
 import { desc, asc, eq } from "drizzle-orm";
 import { getDb } from "./index";
-import { pantryItems, mealPlans, groceryItems, mealFeedback, household } from "./schema";
-import type { PantryItem, GroceryItem, MealFeedback, Household } from "./schema";
+import { pantryItems, mealPlans, groceryItems, mealFeedback, household, savedRecipes } from "./schema";
+import type { PantryItem, GroceryItem, MealFeedback, Household, SavedRecipe } from "./schema";
 import type { WeeklyMealPlan } from "../ai/prompts";
+
+export async function getSavedRecipes(): Promise<SavedRecipe[]> {
+  const db = await getDb();
+  return db.select().from(savedRecipes).orderBy(desc(savedRecipes.createdAt));
+}
 
 export async function getHousehold(): Promise<Household> {
   const db = await getDb();

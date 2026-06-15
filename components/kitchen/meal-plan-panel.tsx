@@ -7,6 +7,7 @@ import { Sparkles, Clock, Beef } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMealPlan } from "@/app/kitchen/actions";
 import { MealRating, type Sentiment } from "./meal-rating";
+import { SaveRecipeButton } from "./save-recipe-button";
 import type { WeeklyMealPlan } from "@/lib/ai/prompts";
 
 export function MealPlanPanel({
@@ -59,7 +60,18 @@ export function MealPlanPanel({
               </div>
               <div className="mt-1 flex items-start justify-between gap-2">
                 <h3 className="font-medium">{m.name}</h3>
-                <MealRating name={m.name} current={feedback[m.name] ?? null} />
+                <div className="flex items-center gap-0.5">
+                  <SaveRecipeButton
+                    recipe={{
+                      name: m.name,
+                      blurb: m.blurb,
+                      proteinGrams: m.proteinGrams,
+                      prepMinutes: m.prepMinutes,
+                      items: m.ingredients ?? [],
+                    }}
+                  />
+                  <MealRating name={m.name} current={feedback[m.name] ?? null} />
+                </div>
               </div>
               {m.blurb && <p className="text-muted-foreground mt-0.5 text-sm">{m.blurb}</p>}
               {m.steps?.length > 0 && (

@@ -1,7 +1,7 @@
 {
-  "name": "Veek Fitness",
-  "short_name": "Veek",
-  "description": "Stay mobile, protect your back, keep moving.",
+  "name": "Cadence",
+  "short_name": "Cadence",
+  "description": "Move well, eat well, together.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
