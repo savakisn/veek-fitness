@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Moon, Heart, Star, BatteryMedium, Scale } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { StepsTrend } from "./steps-trend";
@@ -32,15 +33,30 @@ function Ring({ value, goal }: { value: number; goal: number }) {
   );
 }
 
-function Stat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+function Stat({
+  href,
+  icon: Icon,
+  label,
+  value,
+  sub,
+}: {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
   return (
-    <div className="flex items-center gap-2">
+    <Link href={href} className="flex items-center gap-2">
       <Icon className="text-primary size-4 shrink-0" />
       <div>
-        <p className="text-sm font-medium tabular-nums">{value}</p>
+        <p className="text-sm font-medium tabular-nums">
+          {value}
+          {sub ? <span className="text-muted-foreground ml-1 text-xs font-normal">{sub}</span> : null}
+        </p>
         <p className="text-muted-foreground text-xs">{label}</p>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -63,7 +79,7 @@ export function DeviceMetrics({
       <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">From your Garmin</p>
 
       {steps != null && (
-        <div className="flex items-center gap-4">
+        <Link href="/metric/steps" className="flex items-center gap-4">
           <Ring value={steps} goal={STEP_GOAL} />
           <div className="min-w-0 flex-1">
             <p className="text-muted-foreground text-xs">Steps · last 7 days</p>
@@ -73,16 +89,28 @@ export function DeviceMetrics({
               <p className="text-sm">{Math.round(steps).toLocaleString()} yesterday</p>
             )}
           </div>
-        </div>
+        </Link>
       )}
 
       {hasStats && (
         <div className="flex flex-wrap gap-x-6 gap-y-3">
-          {metrics.body_battery ? <Stat icon={BatteryMedium} label="Body Battery" value={String(Math.round(metrics.body_battery))} /> : null}
-          {metrics.resting_hr ? <Stat icon={Heart} label="Resting HR" value={String(Math.round(metrics.resting_hr))} /> : null}
-          {metrics.sleep_hours ? <Stat icon={Moon} label="Sleep" value={`${metrics.sleep_hours}h`} /> : null}
-          {metrics.sleep_score ? <Stat icon={Star} label="Sleep score" value={String(Math.round(metrics.sleep_score))} /> : null}
-          {metrics.weight ? <Stat icon={Scale} label="Weight" value={`${metrics.weight} lb`} /> : null}
+          {metrics.body_battery ? (
+            <Stat
+              href="/metric/body_battery"
+              icon={BatteryMedium}
+              label="Body Battery"
+              value={String(Math.round(metrics.body_battery))}
+              sub={
+                metrics.body_battery_charged || metrics.body_battery_drained
+                  ? `+${Math.round(metrics.body_battery_charged ?? 0)} / -${Math.round(metrics.body_battery_drained ?? 0)}`
+                  : undefined
+              }
+            />
+          ) : null}
+          {metrics.resting_hr ? <Stat href="/metric/resting_hr" icon={Heart} label="Resting HR" value={String(Math.round(metrics.resting_hr))} /> : null}
+          {metrics.sleep_hours ? <Stat href="/metric/sleep_hours" icon={Moon} label="Sleep" value={`${metrics.sleep_hours}h`} /> : null}
+          {metrics.sleep_score ? <Stat href="/metric/sleep_score" icon={Star} label="Sleep score" value={String(Math.round(metrics.sleep_score))} /> : null}
+          {metrics.weight ? <Stat href="/metric/weight" icon={Scale} label="Weight" value={`${metrics.weight} lb`} /> : null}
         </div>
       )}
     </div>

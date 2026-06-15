@@ -108,7 +108,7 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     const durationMinutes = a.duration ? Math.round(a.duration / 60) : null;
     const detail = activityDetail(a);
     // Pull HR samples for the most recent few only (caps API calls per run).
-    if (hrFetched < 8) {
+    if (hrFetched < 6) {
       try {
         const hrSamples = await fetchHrSamples(client, a.activityId);
         if (hrSamples) detail.hrSamples = hrSamples;
@@ -132,8 +132,8 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   let metricCount = 0;
   const day = new Date(Date.now() - 86400000); // yesterday (today isn't synced yet)
   const dayStr = day.toISOString().slice(0, 10);
-  // Steps for the last 7 days so the card can show a trend.
-  for (let i = 1; i <= 7; i++) {
+  // Steps for the last 14 days so trends/deep-dives have history.
+  for (let i = 1; i <= 14; i++) {
     const dd = new Date(Date.now() - i * 86400000);
     const ds = dd.toISOString().slice(0, 10);
     try {
@@ -191,14 +191,21 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     const today = new Date().toISOString().slice(0, 10);
     const profile = (await client.getUserProfile()) as unknown as { displayName?: string };
     if (profile?.displayName) {
-      const summary = await client.get<{ bodyBatteryMostRecentValue?: number; bodyBatteryHighestValue?: number }>(
-        `https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${today}`,
-      );
+      const summary = await client.get<{
+        bodyBatteryMostRecentValue?: number;
+        bodyBatteryHighestValue?: number;
+        bodyBatteryChargedValue?: number;
+        bodyBatteryDrainedValue?: number;
+      }>(`https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${today}`);
       const bb = summary?.bodyBatteryMostRecentValue ?? summary?.bodyBatteryHighestValue;
       if (typeof bb === "number" && bb > 0) {
         await upsertMetric(db, userId, today, "body_battery", bb);
         metricCount++;
       }
+      if (typeof summary?.bodyBatteryChargedValue === "number")
+        await upsertMetric(db, userId, today, "body_battery_charged", summary.bodyBatteryChargedValue);
+      if (typeof summary?.bodyBatteryDrainedValue === "number")
+        await upsertMetric(db, userId, today, "body_battery_drained", summary.bodyBatteryDrainedValue);
     }
   } catch {
     /* body battery unavailable */
