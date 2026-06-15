@@ -32,6 +32,7 @@ export type FitnessAgeBreakdown = {
   bmi: number | null;
   bmiAdjust: number;
   fitnessAge: number;
+  faSource: "garmin" | "derived";
 };
 
 // Live fitness age. Primary input is Garmin's own VO2max (what its fitness age
@@ -75,7 +76,12 @@ export async function fitnessAgeBreakdown(db: DB, userId: number): Promise<Fitne
     else if (bmi < 18.5) bmiAdjust = (18.5 - bmi) * 0.6;
   }
 
-  const fitnessAge = Math.max(16, Math.min(80, Math.round(baseAge + bmiAdjust)));
+  const derivedAge = Math.max(16, Math.min(80, Math.round(baseAge + bmiAdjust)));
+
+  // Garmin's own fitness age is the reference truth; use it when present.
+  const garminFa = await latest(db, userId, "garmin_fitness_age");
+  const useGarmin = garminFa != null && garminFa > 0;
+
   return {
     age: Math.round(age * 10) / 10,
     vo2max: Math.round(vo2max * 10) / 10,
@@ -85,7 +91,8 @@ export async function fitnessAgeBreakdown(db: DB, userId: number): Promise<Fitne
     baseAge: Math.round(baseAge),
     bmi: bmi == null ? null : Math.round(bmi * 10) / 10,
     bmiAdjust: Math.round(bmiAdjust * 10) / 10,
-    fitnessAge,
+    fitnessAge: useGarmin ? Math.round(garminFa!) : derivedAge,
+    faSource: useGarmin ? "garmin" : "derived",
   };
 }
 

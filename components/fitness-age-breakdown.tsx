@@ -24,17 +24,23 @@ export function FitnessAgeBreakdownCard({ b }: { b: FitnessAgeBreakdown }) {
         {b.vo2Source === "estimated" && b.hrRest != null && <Row label="Resting HR" value={`${b.hrRest} bpm`} />}
         {b.vo2Source === "estimated" && b.hrMax != null && <Row label="Max HR" value={`${b.hrMax} bpm`} />}
         <Row label="VO₂max" value={String(b.vo2max)} note={b.vo2Source === "garmin" ? "from Garmin" : "estimated"} />
-        <Row label="VO₂max age" value={`${b.baseAge} yrs`} note="vs male norms" />
+        {b.faSource === "derived" && <Row label="VO₂max age" value={`${b.baseAge} yrs`} note="vs male norms" />}
         {b.bmi != null && (
-          <Row label="BMI" value={String(b.bmi)} note={b.bmiAdjust ? `+${b.bmiAdjust} yrs` : "neutral"} />
+          <Row label="BMI" value={String(b.bmi)} note={b.faSource === "derived" && b.bmiAdjust ? `+${b.bmiAdjust} yrs` : undefined} />
         )}
-        <Row label="Fitness age" value={`${b.fitnessAge} yrs`} note={delta <= 0 ? `${delta} vs age` : `+${delta} vs age`} />
+        <Row
+          label="Fitness age"
+          value={`${b.fitnessAge} yrs`}
+          note={b.faSource === "garmin" ? "from Garmin" : delta <= 0 ? `${delta} vs age` : `+${delta} vs age`}
+        />
       </div>
 
       <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-        {b.vo2Source === "garmin"
-          ? "Uses Garmin's VO₂max, mapped to male population norms and adjusted for BMI — so it tracks close to Garmin's own fitness age."
-          : "VO₂max is estimated from your resting and max heart rate (Garmin's VO₂max wasn't available yet), mapped to male norms and adjusted for BMI. It sharpens once Garmin computes a VO₂max from a run or ride."}
+        {b.faSource === "garmin"
+          ? "Fitness age is Garmin's own figure (from your VO₂max), shown here live. VO₂max and BMI are context."
+          : b.vo2Source === "garmin"
+            ? "Derived from Garmin's VO₂max mapped to male population norms, adjusted for BMI."
+            : "VO₂max is estimated from your resting and max heart rate (Garmin's wasn't available yet), mapped to male norms and adjusted for BMI. It sharpens once Garmin computes a VO₂max from a run or ride."}
       </p>
     </div>
   );

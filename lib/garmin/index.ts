@@ -98,16 +98,18 @@ async function targetUserId(db: DB): Promise<number> {
   return first.id;
 }
 
-// Garmin's own VO2max for a date (the basis of its fitness age). Best-effort.
+// Garmin's own VO2max and fitness age for a date. Best-effort.
 async function pullVo2Max(db: DB, client: GarminConnect, userId: number, dateStr: string): Promise<void> {
   try {
-    const mm = await client.get<{ generic?: { vo2MaxPreciseValue?: number; vo2MaxValue?: number } }>(
-      `https://connectapi.garmin.com/metrics-service/metrics/maxmet/latest/${dateStr}`,
-    );
+    const mm = await client.get<{
+      generic?: { vo2MaxPreciseValue?: number; vo2MaxValue?: number; fitnessAge?: number };
+    }>(`https://connectapi.garmin.com/metrics-service/metrics/maxmet/latest/${dateStr}`);
     const vo2 = mm?.generic?.vo2MaxPreciseValue ?? mm?.generic?.vo2MaxValue;
     if (typeof vo2 === "number" && vo2 > 0) await upsertMetric(db, userId, dateStr, "vo2max", Math.round(vo2 * 10) / 10);
+    const fa = mm?.generic?.fitnessAge;
+    if (typeof fa === "number" && fa > 0) await upsertMetric(db, userId, dateStr, "garmin_fitness_age", Math.round(fa));
   } catch {
-    /* vo2max unavailable */
+    /* vo2max / fitness age unavailable */
   }
 }
 
