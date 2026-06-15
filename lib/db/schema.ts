@@ -11,6 +11,14 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+// Cached Garmin OAuth tokens so live fetches skip the slow full login. Single row.
+export const garminAuth = pgTable("garmin_auth", {
+  id: integer("id").primaryKey().default(1),
+  oauth1: jsonb("oauth1"),
+  oauth2: jsonb("oauth2"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Each person: their own login, goals, and equipment. Fitness is per-user.
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -107,6 +115,9 @@ export const workouts = pgTable(
       distanceKm?: number;
       elevationM?: number;
       hrSamples?: { t: number; hr: number }[];
+      speedSamples?: { t: number; v: number }[];
+      distSamples?: { t: number; d: number }[];
+      trim?: { startSec: number; endSec: number };
     }>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -215,3 +226,4 @@ export type GroceryItem = typeof groceryItems.$inferSelect;
 export type AiInsight = typeof aiInsights.$inferSelect;
 export type MealFeedback = typeof mealFeedback.$inferSelect;
 export type SavedRecipe = typeof savedRecipes.$inferSelect;
+export type GarminAuth = typeof garminAuth.$inferSelect;

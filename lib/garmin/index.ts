@@ -1,13 +1,12 @@
 import "server-only";
 import { GarminConnect } from "garmin-connect";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getDb } from "../db";
 import type { DB } from "../db";
-import { users, workouts, metrics } from "../db/schema";
+import { users, workouts, metrics, garminAuth } from "../db/schema";
 
-// Pulls Garmin activities + a couple of daily metrics into one user's data
-// (Garmin belongs to Nick). Unofficial library, so everything is best-effort and
-// deduped by the (user, source, external_id) index. RingConn is intentionally absent.
+// Pulls Garmin data into one user's record (Garmin belongs to Nick). Unofficial
+// library, so everything is best-effort and deduped by (user, source, external_id).
 export type GarminSyncResult = { activities: number; metrics: number };
 
 type GarminActivity = {
@@ -30,6 +29,9 @@ type Detail = {
   distanceKm?: number;
   elevationM?: number;
   hrSamples?: { t: number; hr: number }[];
+  speedSamples?: { t: number; v: number }[];
+  distSamples?: { t: number; d: number }[];
+  trim?: { startSec: number; endSec: number };
 };
 
 function activityDetail(a: GarminActivity): Detail {
@@ -43,31 +45,42 @@ function activityDetail(a: GarminActivity): Detail {
   };
 }
 
-// HR time-series for one activity, via the details endpoint. Best-effort.
-async function fetchHrSamples(
+// HR, speed, and cumulative distance samples for one activity, via the details
+// endpoint. Best-effort; powers the HR chart and session trimming.
+async function fetchActivitySamples(
   client: GarminConnect,
   activityId: number,
-): Promise<{ t: number; hr: number }[] | undefined> {
-  const url = `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=120`;
+): Promise<Pick<Detail, "hrSamples" | "speedSamples" | "distSamples">> {
+  const url = `https://connectapi.garmin.com/activity-service/activity/${activityId}/details?maxChartSize=200`;
   const data = await client.get<{
     metricDescriptors?: { metricsIndex: number; key: string }[];
     activityDetailMetrics?: { metrics: (number | null)[] }[];
   }>(url);
   const descs = data?.metricDescriptors ?? [];
   const rows = data?.activityDetailMetrics ?? [];
-  const hrIdx = descs.find((d) => d.key === "directHeartRate")?.metricsIndex;
-  const tIdx = descs.find((d) => d.key === "sumElapsedDuration")?.metricsIndex;
-  if (hrIdx == null) return undefined;
+  const idx = (k: string) => descs.find((d) => d.key === k)?.metricsIndex;
+  const tIdx = idx("sumElapsedDuration");
+  const hrIdx = idx("directHeartRate");
+  const spIdx = idx("directSpeed");
+  const dIdx = idx("sumDistance");
 
-  const samples: { t: number; hr: number }[] = [];
+  const hrSamples: { t: number; hr: number }[] = [];
+  const speedSamples: { t: number; v: number }[] = [];
+  const distSamples: { t: number; d: number }[] = [];
   rows.forEach((row, i) => {
-    const hr = row.metrics?.[hrIdx];
-    if (typeof hr === "number" && hr > 0) {
-      const t = tIdx != null ? row.metrics?.[tIdx] : null;
-      samples.push({ t: typeof t === "number" ? Math.round(t) : i, hr: Math.round(hr) });
-    }
+    const t = tIdx != null && typeof row.metrics?.[tIdx] === "number" ? Math.round(row.metrics[tIdx] as number) : i;
+    const hr = hrIdx != null ? row.metrics?.[hrIdx] : null;
+    if (typeof hr === "number" && hr > 0) hrSamples.push({ t, hr: Math.round(hr) });
+    const sp = spIdx != null ? row.metrics?.[spIdx] : null;
+    if (typeof sp === "number") speedSamples.push({ t, v: Math.round(sp * 100) / 100 });
+    const d = dIdx != null ? row.metrics?.[dIdx] : null;
+    if (typeof d === "number") distSamples.push({ t, d: Math.round(d) });
   });
-  return samples.length ? samples : undefined;
+  return {
+    hrSamples: hrSamples.length ? hrSamples : undefined,
+    speedSamples: speedSamples.length ? speedSamples : undefined,
+    distSamples: distSamples.length ? distSamples : undefined,
+  };
 }
 
 async function targetUserId(db: DB): Promise<number> {
@@ -87,40 +100,120 @@ async function upsertMetric(db: DB, userId: number, date: string, metricType: st
     });
 }
 
-export async function syncGarmin(): Promise<GarminSyncResult> {
+// A logged-in client, reusing a cached OAuth token so live fetches are fast.
+async function loginClient(db: DB): Promise<GarminConnect> {
   const username = process.env.GARMIN_EMAIL;
   const password = process.env.GARMIN_PASSWORD;
   if (!username || !password) throw new Error("GARMIN_EMAIL / GARMIN_PASSWORD not set.");
-
   const client = new GarminConnect({ username, password });
-  await client.login();
 
+  try {
+    const [row] = await db.select().from(garminAuth).where(eq(garminAuth.id, 1));
+    if (row?.oauth1 && row?.oauth2) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      client.loadToken(row.oauth1 as any, row.oauth2 as any);
+      await client.getUserProfile(); // throws if the token is stale
+      return client;
+    }
+  } catch {
+    /* no/stale token, fall through to a full login */
+  }
+
+  await client.login();
+  try {
+    const tokens = client.exportToken() as unknown as { oauth1: unknown; oauth2: unknown };
+    await db
+      .insert(garminAuth)
+      .values({ id: 1, oauth1: tokens.oauth1, oauth2: tokens.oauth2, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: garminAuth.id,
+        set: { oauth1: tokens.oauth1, oauth2: tokens.oauth2, updatedAt: new Date() },
+      });
+  } catch {
+    /* token export failed; we just re-login next time */
+  }
+  return client;
+}
+
+// Today's "right now" numbers — body battery (with recharge/drain), steps, resting
+// HR. Called on app open so the card stays current, like the Garmin app.
+export async function fetchLiveMetrics(): Promise<{ updated: number }> {
   const db = await getDb();
   const userId = await targetUserId(db);
+  const client = await loginClient(db);
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  let updated = 0;
+
+  try {
+    const steps = (await client.getSteps(today)) as unknown;
+    if (typeof steps === "number" && steps > 0) {
+      await upsertMetric(db, userId, todayStr, "steps", steps);
+      updated++;
+    }
+  } catch {
+    /* steps unavailable */
+  }
+  try {
+    const hr = (await client.getHeartRate(today)) as unknown as { restingHeartRate?: number };
+    if (typeof hr?.restingHeartRate === "number" && hr.restingHeartRate > 0) {
+      await upsertMetric(db, userId, todayStr, "resting_hr", hr.restingHeartRate);
+      updated++;
+    }
+  } catch {
+    /* resting hr unavailable */
+  }
+  try {
+    const profile = (await client.getUserProfile()) as unknown as { displayName?: string };
+    if (profile?.displayName) {
+      const s = await client.get<{
+        bodyBatteryMostRecentValue?: number;
+        bodyBatteryHighestValue?: number;
+        bodyBatteryChargedValue?: number;
+        bodyBatteryDrainedValue?: number;
+      }>(`https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${todayStr}`);
+      const bb = s?.bodyBatteryMostRecentValue ?? s?.bodyBatteryHighestValue;
+      if (typeof bb === "number" && bb > 0) {
+        await upsertMetric(db, userId, todayStr, "body_battery", bb);
+        updated++;
+      }
+      if (typeof s?.bodyBatteryChargedValue === "number")
+        await upsertMetric(db, userId, todayStr, "body_battery_charged", s.bodyBatteryChargedValue);
+      if (typeof s?.bodyBatteryDrainedValue === "number")
+        await upsertMetric(db, userId, todayStr, "body_battery_drained", s.bodyBatteryDrainedValue);
+    }
+  } catch {
+    /* body battery unavailable */
+  }
+  return { updated };
+}
+
+export async function syncGarmin(): Promise<GarminSyncResult> {
+  const db = await getDb();
+  const userId = await targetUserId(db);
+  const client = await loginClient(db);
 
   const acts = (await client.getActivities(0, 30)) as unknown as GarminActivity[];
   let activities = 0;
-  let hrFetched = 0;
+  let sampled = 0;
   for (const a of acts) {
     const date = (a.startTimeLocal ?? "").slice(0, 10);
     if (!date) continue;
     const type = a.activityName || a.activityType?.typeKey || "Activity";
     const durationMinutes = a.duration ? Math.round(a.duration / 60) : null;
     const detail = activityDetail(a);
-    // Pull HR samples for the most recent few only (caps API calls per run).
-    if (hrFetched < 6) {
+    if (sampled < 6) {
       try {
-        const hrSamples = await fetchHrSamples(client, a.activityId);
-        if (hrSamples) detail.hrSamples = hrSamples;
+        Object.assign(detail, await fetchActivitySamples(client, a.activityId));
       } catch {
-        /* HR detail unavailable */
+        /* detail samples unavailable */
       }
-      hrFetched++;
+      sampled++;
     }
     await db
       .insert(workouts)
       .values({ userId, date, source: "garmin", externalId: String(a.activityId), type, durationMinutes, location: "outdoor", detail })
-      // Refresh stats on re-sync, but don't clobber a type the user has relabelled.
+      // Refresh stats on re-sync, but don't clobber a relabelled type or a trim.
       .onConflictDoUpdate({
         target: [workouts.userId, workouts.source, workouts.externalId],
         set: { durationMinutes, detail },
@@ -130,16 +223,14 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
 
   // Daily numbers, best-effort and independent — never break the activity sync.
   let metricCount = 0;
-  const day = new Date(Date.now() - 86400000); // yesterday (today isn't synced yet)
+  const day = new Date(Date.now() - 86400000);
   const dayStr = day.toISOString().slice(0, 10);
-  // Steps for the last 14 days so trends/deep-dives have history.
   for (let i = 1; i <= 14; i++) {
     const dd = new Date(Date.now() - i * 86400000);
-    const ds = dd.toISOString().slice(0, 10);
     try {
       const steps = (await client.getSteps(dd)) as unknown;
       if (typeof steps === "number" && steps > 0) {
-        await upsertMetric(db, userId, ds, "steps", steps);
+        await upsertMetric(db, userId, dd.toISOString().slice(0, 10), "steps", steps);
         metricCount++;
       }
     } catch {
@@ -172,40 +263,47 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
   } catch {
     /* sleep unavailable */
   }
-  // Weight: use the most recent weigh-in within the last few days (he logs it manually).
-  for (let i = 0; i < 4; i++) {
-    const dd = new Date(Date.now() - i * 86400000);
-    try {
-      const lbs = (await client.getDailyWeightInPounds(dd)) as unknown;
-      if (typeof lbs === "number" && lbs > 0) {
-        await upsertMetric(db, userId, dd.toISOString().slice(0, 10), "weight", Math.round(lbs * 10) / 10);
+  // Weight history via the range endpoint (covers older weigh-ins, not just recent days).
+  try {
+    const start = new Date(Date.now() - 220 * 86400000).toISOString().slice(0, 10);
+    const end = new Date().toISOString().slice(0, 10);
+    const wr = await client.get<{
+      dailyWeightSummaries?: {
+        summaryDate?: string;
+        latestWeight?: { weight?: number };
+        allWeightMetrics?: { weight?: number }[];
+      }[];
+    }>(`https://connectapi.garmin.com/weight-service/weight/range/${start}/${end}?includeAll=true`);
+    for (const s of wr?.dailyWeightSummaries ?? []) {
+      const grams = s.latestWeight?.weight ?? s.allWeightMetrics?.[0]?.weight;
+      if (typeof grams === "number" && grams > 0 && s.summaryDate) {
+        await upsertMetric(db, userId, s.summaryDate.slice(0, 10), "weight", Math.round((grams / 453.592) * 10) / 10);
         metricCount++;
-        break;
       }
-    } catch {
-      /* weight unavailable */
     }
+  } catch {
+    /* weight unavailable */
   }
-  // Body Battery is a "right now" value — read today's most recent.
+  // Body battery for today (with recharge/drain).
   try {
     const today = new Date().toISOString().slice(0, 10);
     const profile = (await client.getUserProfile()) as unknown as { displayName?: string };
     if (profile?.displayName) {
-      const summary = await client.get<{
+      const s = await client.get<{
         bodyBatteryMostRecentValue?: number;
         bodyBatteryHighestValue?: number;
         bodyBatteryChargedValue?: number;
         bodyBatteryDrainedValue?: number;
       }>(`https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${today}`);
-      const bb = summary?.bodyBatteryMostRecentValue ?? summary?.bodyBatteryHighestValue;
+      const bb = s?.bodyBatteryMostRecentValue ?? s?.bodyBatteryHighestValue;
       if (typeof bb === "number" && bb > 0) {
         await upsertMetric(db, userId, today, "body_battery", bb);
         metricCount++;
       }
-      if (typeof summary?.bodyBatteryChargedValue === "number")
-        await upsertMetric(db, userId, today, "body_battery_charged", summary.bodyBatteryChargedValue);
-      if (typeof summary?.bodyBatteryDrainedValue === "number")
-        await upsertMetric(db, userId, today, "body_battery_drained", summary.bodyBatteryDrainedValue);
+      if (typeof s?.bodyBatteryChargedValue === "number")
+        await upsertMetric(db, userId, today, "body_battery_charged", s.bodyBatteryChargedValue);
+      if (typeof s?.bodyBatteryDrainedValue === "number")
+        await upsertMetric(db, userId, today, "body_battery_drained", s.bodyBatteryDrainedValue);
     }
   } catch {
     /* body battery unavailable */

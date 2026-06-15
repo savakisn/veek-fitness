@@ -1,66 +1,55 @@
-# Veek Fitness
+# Cadence
 
-A personal, mobile-first fitness app. The point isn't getting jacked, it's staying
-mobile and protecting your back so you can keep skiing and playing disc golf for
-decades. Back-safe routines, simple logging, forgiving streaks, Home and Gym tracks
-that grow as you add equipment.
+A private fitness and kitchen app for two people (a couple). Fitness is per-person;
+the kitchen is shared. The point is staying mobile and eating better without it
+feeling like a chore.
 
-Built to expand: a generic time-series metrics store and clean feature modules mean
-charts, AI summaries, body metrics, Garmin sync, and a meal-planning Kitchen all
-plug into the same core later without a rewrite.
+## What it does
+
+**Fitness (per user)**
+- Today: a load-based training status (last 7 days vs a 28-day baseline), an AI
+  coach you tell how you feel to get a workout suggestion, and your synced device
+  numbers.
+- Routines: a back-safe library (mobility, core, strength, yoga/pilates, sport prep)
+  filtered by Home or Gym equipment.
+- History: every session, tap one for its stats (HR over time, distance, calories).
+- Garmin sync pulls activities, steps, sleep, resting HR, body battery, and weight.
+
+**Kitchen (shared household)**
+- Cook: what's on hand plus "what can I make" from it.
+- Plan: a few AI dinner ideas for the week, swipe to save or skip (a skip refills
+  the slot). Thumbs steer future suggestions.
+- Menu: saved recipes you can re-add to the grocery list.
+- Grocery: built from the plan, duplicates merged, shareable.
 
 ## Stack
 
-- Next.js (App Router) + TypeScript + Tailwind + shadcn/ui, installable PWA
-- Drizzle ORM over Postgres
-- Dev: bundled **PGlite** (no Docker, no setup). Prod: **Supabase Postgres**, same schema
-- Deploy: Vercel
+- Next.js (App Router) + TypeScript + Tailwind + shadcn/ui, as an installable PWA
+- Supabase Postgres via Drizzle (dev uses a bundled PGlite database, no setup)
+- Claude (`claude-haiku-4-5`) for the coach and meal planning
+- Garmin via the `garmin-connect` library on a daily Vercel cron
+- Single-user-style passcode login per person (HMAC-signed cookie)
 
-## Run it locally
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-No database setup needed. With no `DATABASE_URL`, the app spins up a local PGlite
-database, runs migrations, and seeds the routine library automatically. Open
-http://localhost:3000. With no `PASSCODE` set, there's no login gate locally.
+No database setup: with no `DATABASE_URL` it spins up a local PGlite database and
+seeds the library and two demo accounts. With no `AUTH_SECRET` the login gate is open.
 
-## Launch checklist (the ~15 minutes in the morning)
+## Environment
 
-1. **Supabase**: create a project. Copy the connection string from Project Settings
-   → Database → Connection string → URI (use the pooled port 6543).
-2. **Env**: `cp .env.example .env`, then set `DATABASE_URL` to that string and
-   `PASSCODE` to whatever you want to type to get in.
-3. **Migrate + seed Supabase** (same SQL proven locally):
-   ```bash
-   npm run db:migrate
-   npm run db:seed
-   ```
-4. **GitHub**: push this repo (`git remote add origin … && git push -u origin main`).
-5. **Vercel**: import the GitHub repo. Add the same `DATABASE_URL` and `PASSCODE`
-   as environment variables. Deploy.
-6. **Phone**: open the Vercel URL in your phone browser and Add to Home Screen.
+See `.env.example`. For production: `DATABASE_URL` (Supabase pooled URI),
+`AUTH_SECRET` (signs login cookies), `ANTHROPIC_API_KEY` (AI), and
+`GARMIN_EMAIL` / `GARMIN_PASSWORD` / `CRON_SECRET` (Garmin sync).
 
-## Layout
+## Notes
 
-- `app/` — pages: Today, Routines, routine runner, Log, History, Kitchen, Settings, Login
-- `lib/db/` — schema, queries, kitchen, insights, seed library, the PGlite/Postgres client
-- `lib/streaks.ts` — weekly-goal streak math
-- `lib/equipment.ts` — gear list + Home/Gym availability logic
-- `lib/ai/` — Claude (Haiku) seam: weekly fitness summary + Kitchen meal planning. Needs `ANTHROPIC_API_KEY`.
-- `lib/garmin/` — Garmin sync seam (stub, fast-follow)
-- `public/sw.js`, `lib/offline-queue.ts` — offline app shell + log-and-sync
-
-## AI features
-
-The Today "Coach" card and the whole Kitchen (AI weekly meal plan, fridge-to-recipe)
-run on the Claude API via `lib/ai`. Set `ANTHROPIC_API_KEY` (locally in `.env`, and in
-Vercel env for prod). Without it, those features show a friendly "AI isn't set up"
-message instead of failing.
-
-## What's next (fast-follow, all built on the existing core)
-
-Flexible analytics dashboard, body metrics, reminders/push, the modular
-`HealthProvider` integration (Garmin now, Fitbit later) into the metrics store.
+- Schema changes are applied to production by hand in the Supabase SQL Editor, not
+  `db:migrate` (the local migrations under `drizzle/` are for the bundled dev DB).
+- Run a migration before deploying; a deploy ahead of its schema breaks the app.
+- Layout: `app/` pages, `lib/db` data layer, `lib/ai` Claude seam, `lib/garmin`
+  sync, `lib/load.ts` training load, `lib/auth.ts` per-user auth.

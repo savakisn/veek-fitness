@@ -70,6 +70,32 @@ export async function updateWorkoutType(id: number, type: string) {
   revalidatePath(`/workout/${id}`);
 }
 
+function nearestDistance(samples: { t: number; d: number }[], sec: number): number | null {
+  if (!samples.length) return null;
+  let best = samples[0];
+  for (const s of samples) if (Math.abs(s.t - sec) < Math.abs(best.t - sec)) best = s;
+  return best.d;
+}
+
+export async function updateWorkoutTrim(id: number, startSec: number, endSec: number) {
+  const db = await getDb();
+  const user = await getCurrentUser();
+  const [w] = await db.select().from(workouts).where(and(eq(workouts.id, id), eq(workouts.userId, user.id)));
+  if (!w) return;
+  const detail = { ...(w.detail ?? {}) } as NonNullable<typeof w.detail>;
+  const durationMinutes = Math.max(1, Math.round((endSec - startSec) / 60));
+  if (detail.distSamples?.length) {
+    const dStart = nearestDistance(detail.distSamples, startSec);
+    const dEnd = nearestDistance(detail.distSamples, endSec);
+    if (dStart != null && dEnd != null) detail.distanceKm = Math.round(((dEnd - dStart) / 1000) * 100) / 100;
+  }
+  detail.trim = { startSec: Math.round(startSec), endSec: Math.round(endSec) };
+  await db.update(workouts).set({ durationMinutes, detail }).where(eq(workouts.id, id));
+  revalidatePath(`/workout/${id}`);
+  revalidatePath("/history");
+  revalidatePath("/");
+}
+
 export async function deleteWorkout(id: number) {
   const db = await getDb();
   const user = await getCurrentUser();

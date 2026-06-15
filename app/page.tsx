@@ -6,6 +6,7 @@ import { getTrainingLoad, getSuggestedRoutine, getRecentWorkouts } from "@/lib/d
 import { getLatestInsight, getLatestMetrics, getMetricSeries } from "@/lib/db/insights";
 import { PageHeader } from "@/components/page-header";
 import { DeviceMetrics } from "@/components/device-metrics";
+import { LiveGarmin } from "@/components/live-garmin";
 import { TrainingStatusCard } from "@/components/training-status-card";
 import { LocationToggle } from "@/components/location-toggle";
 import { RoutineCard } from "@/components/routine-card";
@@ -41,6 +42,7 @@ export default async function TodayPage() {
         <TrainingStatusCard status={training} />
 
         <DeviceMetrics metrics={deviceMetrics} stepsSeries={stepsSeries} />
+        <LiveGarmin enabled={Object.keys(deviceMetrics).length > 0} />
 
         <InsightCard initialText={insight?.text ?? null} />
 

@@ -7,6 +7,7 @@ import { getWorkoutById } from "@/lib/db/queries";
 import { prettyDate } from "@/lib/format";
 import { WorkoutTypeEditor } from "@/components/workout-type-editor";
 import { HrChart } from "@/components/hr-chart";
+import { SessionTrimmer } from "@/components/session-trimmer";
 
 export const dynamic = "force-dynamic";
 const EFFORT = ["", "Easy", "Light", "Moderate", "Hard", "All out"];
@@ -63,6 +64,12 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
       {d.hrSamples && d.hrSamples.length > 1 && (
         <div className="mt-4">
           <HrChart samples={d.hrSamples} />
+        </div>
+      )}
+
+      {d.speedSamples && d.speedSamples.length > 1 && (
+        <div className="mt-4">
+          <SessionTrimmer id={w.id} speedSamples={d.speedSamples} trim={d.trim} />
         </div>
       )}
 
