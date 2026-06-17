@@ -1,7 +1,7 @@
 import "server-only";
 import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import { getDb } from "./index";
-import { exercises, routines, routineExercises, workouts } from "./schema";
+import { exercises, routines, routineExercises, workouts, metrics } from "./schema";
 import type { Exercise, Routine, RoutineExercise, Workout, User } from "./schema";
 import { isOwned } from "../equipment";
 import { computeStreak, type StreakInfo } from "../streaks";
@@ -124,7 +124,12 @@ export async function getTrainingLoad(userId: number): Promise<TrainingStatus> {
     })
     .from(workouts)
     .where(and(eq(workouts.userId, userId), gte(workouts.date, since)));
-  return computeTraining(rows);
+  const stepRows = await db
+    .select({ date: metrics.date, value: metrics.value })
+    .from(metrics)
+    .where(and(eq(metrics.userId, userId), eq(metrics.metricType, "steps"), gte(metrics.date, since)));
+  const stepDays = stepRows.map((r) => ({ date: r.date, steps: r.value }));
+  return computeTraining(rows, stepDays);
 }
 
 export async function getStreak(user: User): Promise<StreakInfo> {

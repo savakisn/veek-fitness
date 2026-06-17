@@ -25,6 +25,7 @@ export function MealPlanPanel({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [addPending, startAdd] = useTransition();
   const [note, setNote] = useState("");
   const [adding, setAdding] = useState("");
   const [open, setOpen] = useState<number | null>(null);
@@ -59,7 +60,7 @@ export function MealPlanPanel({
   function add() {
     const name = adding.trim();
     if (!name) return;
-    start(async () => {
+    startAdd(async () => {
       const res = await addMealToPlan(name);
       if (!res.ok) {
         toast.error(res.error);
@@ -175,11 +176,12 @@ export function MealPlanPanel({
           value={adding}
           onChange={(e) => setAdding(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
+          disabled={addPending}
           placeholder="Add something else? e.g. chicken sandwiches"
           className="w-full bg-transparent text-sm outline-none"
         />
-        <Button onClick={add} disabled={pending || !adding.trim()} size="sm" variant="outline" className="shrink-0">
-          <Plus className="size-4" /> Add
+        <Button onClick={add} disabled={addPending || !adding.trim()} size="sm" variant="outline" className="shrink-0">
+          <Plus className={cn("size-4", addPending && "animate-spin")} /> {addPending ? "Adding…" : "Add"}
         </Button>
       </div>
     </div>

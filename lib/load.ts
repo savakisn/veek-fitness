@@ -17,6 +17,13 @@ export function sessionLoad(w: LoadInput): number {
   return Math.round(dur * intensity);
 }
 
+// Daily steps as a load contribution, so walking counts for someone whose
+// activity isn't recorded workouts. ~9k steps ≈ a solid 60-point day.
+export function stepLoad(steps: number): number {
+  if (!steps || steps <= 0) return 0;
+  return Math.round(steps / 150);
+}
+
 export type TrainingStatus = {
   acuteWeek: number; // load over the last 7 days
   chronicWeek: number; // average weekly load over the last 28 days
@@ -27,28 +34,33 @@ export type TrainingStatus = {
   message: string;
 };
 
-export function computeTraining(rows: LoadInput[], today: Date = new Date()): TrainingStatus {
+export function computeTraining(
+  rows: LoadInput[],
+  stepDays: { date: string; steps: number }[] = [],
+  today: Date = new Date(),
+): TrainingStatus {
   const t = today.getTime();
   let acute = 0;
   let chronic = 0;
-  for (const r of rows) {
-    const ageDays = (t - new Date(r.date + "T00:00:00").getTime()) / 86400000;
-    if (ageDays < 0) continue;
-    const load = sessionLoad(r);
+  const add = (date: string, load: number) => {
+    const ageDays = (t - new Date(date + "T00:00:00").getTime()) / 86400000;
+    if (ageDays < 0) return;
     if (ageDays < 7) acute += load;
     if (ageDays < 28) chronic += load;
-  }
+  };
+  for (const r of rows) add(r.date, sessionLoad(r));
+  for (const s of stepDays) add(s.date, stepLoad(s.steps));
   const chronicWeek = chronic / 4;
   const ratio = chronicWeek > 0 ? acute / chronicWeek : acute > 0 ? 2 : 0;
   const target = Math.max(Math.round(chronicWeek * 1.05), 120); // floor so new users have a goal
 
   let label = "Getting started";
   let tone: TrainingStatus["tone"] = "neutral";
-  let message = "Log or sync a few sessions and your load shows up here.";
+  let message = "Move a little or log a session and your load shows up here.";
   if (chronicWeek > 0 || acute > 0) {
     if (ratio < 0.8) {
       label = "Easing off";
-      message = "Your load is dipping. A couple of sessions this week keeps your base.";
+      message = "Your activity dipped this week. A bit more movement keeps your base.";
     } else if (ratio <= 1.3) {
       label = "On track";
       tone = "good";
