@@ -194,10 +194,16 @@ export async function fetchLiveMetrics(): Promise<{ updated: number }> {
         bodyBatteryHighestValue?: number;
         bodyBatteryChargedValue?: number;
         bodyBatteryDrainedValue?: number;
+        totalSteps?: number;
       }>(`https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${todayStr}`);
       const bb = s?.bodyBatteryMostRecentValue ?? s?.bodyBatteryHighestValue;
       if (typeof bb === "number" && bb > 0) {
         await upsertMetric(db, userId, todayStr, "body_battery", bb);
+        updated++;
+      }
+      // Steps from the same fresh summary, so they update as fast as body battery.
+      if (typeof s?.totalSteps === "number" && s.totalSteps > 0) {
+        await upsertMetric(db, userId, todayStr, "steps", s.totalSteps);
         updated++;
       }
       if (typeof s?.bodyBatteryChargedValue === "number")
@@ -399,10 +405,15 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
         bodyBatteryHighestValue?: number;
         bodyBatteryChargedValue?: number;
         bodyBatteryDrainedValue?: number;
+        totalSteps?: number;
       }>(`https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${today}`);
       const bb = s?.bodyBatteryMostRecentValue ?? s?.bodyBatteryHighestValue;
       if (typeof bb === "number" && bb > 0) {
         await upsertMetric(db, userId, today, "body_battery", bb);
+        metricCount++;
+      }
+      if (typeof s?.totalSteps === "number" && s.totalSteps > 0) {
+        await upsertMetric(db, userId, today, "steps", s.totalSteps);
         metricCount++;
       }
       if (typeof s?.bodyBatteryChargedValue === "number")
