@@ -7,6 +7,7 @@ import { getDb } from "@/lib/db";
 import { getMetricSeries } from "@/lib/db/insights";
 import { fitnessAgeBreakdown } from "@/lib/fitness-age";
 import { MetricChart } from "@/components/metric-chart";
+import { RangeToggle } from "@/components/range-toggle";
 import { FitnessAgeBreakdownCard } from "@/components/fitness-age-breakdown";
 import { BodyBatterySection } from "@/components/body-battery-section";
 import { LogWeight } from "@/components/log-weight";
@@ -27,15 +28,25 @@ function prettyDate(iso: string): string {
   return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
-export default async function MetricPage({ params }: { params: Promise<{ id: string }> }) {
+const RANGES = new Set([7, 30, 90, 365]);
+
+export default async function MetricPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ range?: string }>;
+}) {
   const { id } = await params;
   const meta = META[id];
   if (!meta) notFound();
 
+  const reqRange = Number((await searchParams).range);
+  const days = RANGES.has(reqRange) ? reqRange : 30;
   const user = await getCurrentUser();
   // The body battery trend that matters is the daily peak, stored separately.
   const seriesType = id === "body_battery" ? "body_battery_high" : id;
-  const raw = await getMetricSeries(user.id, seriesType, 30);
+  const raw = await getMetricSeries(user.id, seriesType, days);
   // A daily body-battery "high" under 20 is a sync gap, not a real low — drop it
   // so one bad day doesn't tank the chart.
   const series = id === "body_battery" ? raw.filter((p) => p.value >= 20) : raw;
@@ -79,15 +90,20 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
+      <div className="mt-6 flex items-center justify-between">
+        <h2 className="text-sm font-medium">Trend</h2>
+        <RangeToggle current={days} />
+      </div>
+
       {series.length === 0 ? (
-        <p className="text-muted-foreground mt-6 text-sm">No data yet. It fills in as your device syncs.</p>
+        <p className="text-muted-foreground mt-4 text-sm">No data in this range yet.</p>
       ) : (
         <>
-          <div className="mt-5">
+          <div className="mt-3">
             <MetricChart data={series} variant={meta.variant} />
           </div>
           <ul className="mt-5 divide-y rounded-xl border">
-            {[...series].reverse().map((r) => (
+            {[...series].reverse().slice(0, 30).map((r) => (
               <li key={r.date} className="flex items-center justify-between px-4 py-2.5">
                 <span className="text-muted-foreground text-sm">{prettyDate(r.date)}</span>
                 <span className="text-sm font-medium tabular-nums">{fmt(r.value)}</span>

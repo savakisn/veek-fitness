@@ -232,10 +232,7 @@ export async function fetchLiveMetrics(): Promise<{ updated: number }> {
 
 // Today's intraday Body Battery curve (the rise-overnight, fall-through-day
 // shape Garmin shows). Pulled live for the deep-dive page; not persisted.
-export async function fetchBodyBatteryToday(): Promise<{ ts: number; level: number }[]> {
-  const db = await getDb();
-  const client = await loginClient(db);
-  const date = new Date().toISOString().slice(0, 10);
+async function bodyBatteryForDate(client: GarminConnect, date: string): Promise<{ ts: number; level: number }[]> {
   try {
     const r = await client.get<{ bodyBatteryValuesArray?: (number | string)[][] }>(
       `https://connectapi.garmin.com/wellness-service/wellness/dailyStress/${date}`,
@@ -244,20 +241,30 @@ export async function fetchBodyBatteryToday(): Promise<{ ts: number; level: numb
     for (const e of r?.bodyBatteryValuesArray ?? []) {
       const ts = Number(e[0]); // first element is the GMT ms timestamp (huge number)
       if (!Number.isFinite(ts)) continue;
-      // Among the rest, the body battery level is the plausible 0-100 number;
-      // ignore small status codes by taking the largest valid candidate.
+      // The level is the plausible 0-100 number; ignore small status codes.
       let level = -1;
       for (let i = 1; i < e.length; i++) {
         const n = Number(e[i]);
         if (Number.isFinite(n) && n >= 0 && n <= 100 && n > level) level = n;
       }
-      // Client converts ts to local hours so the curve lines up with the day.
       if (level >= 0) out.push({ ts, level });
     }
     return out;
   } catch {
     return [];
   }
+}
+
+export async function fetchBodyBatteryToday(): Promise<{ ts: number; level: number }[]> {
+  const db = await getDb();
+  const client = await loginClient(db);
+  // The UTC calendar date can be a day off from the user's local day, so try
+  // today and yesterday and use whichever actually has data.
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const a = await bodyBatteryForDate(client, today);
+  if (a.length >= 2) return a;
+  return bodyBatteryForDate(client, yesterday);
 }
 
 export async function syncGarmin(): Promise<GarminSyncResult> {
