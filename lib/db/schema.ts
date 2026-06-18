@@ -192,6 +192,8 @@ export const savedRecipes = pgTable(
     proteinGrams: integer("protein_grams"),
     prepMinutes: integer("prep_minutes"),
     items: jsonb("items").$type<{ item: string; quantity?: string }[]>().notNull(),
+    steps: jsonb("steps").$type<string[]>(),
+    favorite: boolean("favorite").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("saved_recipes_name_uniq").on(t.name)],

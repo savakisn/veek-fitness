@@ -42,7 +42,14 @@ export function MealPlanPanel({
     });
   }
   function recipeOf(m: PlannedMeal) {
-    return { name: m.name, blurb: m.blurb, proteinGrams: m.proteinGrams, prepMinutes: m.prepMinutes, items: m.ingredients ?? [] };
+    return {
+      name: m.name,
+      blurb: m.blurb,
+      proteinGrams: m.proteinGrams,
+      prepMinutes: m.prepMinutes,
+      items: m.ingredients ?? [],
+      steps: m.steps ?? null,
+    };
   }
   function bookmark(m: PlannedMeal) {
     start(async () => {

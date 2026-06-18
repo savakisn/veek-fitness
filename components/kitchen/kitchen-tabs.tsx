@@ -39,7 +39,7 @@ export function KitchenTabs({
       <TabsContent value="menu" className="mt-4">
         <MenuPanel
           recipes={saved}
-          favorites={Object.keys(feedback).filter(
+          pendingFavorites={Object.keys(feedback).filter(
             (n) =>
               feedback[n] === "like" &&
               !saved.some((s) => s.name.trim().toLowerCase() === n.trim().toLowerCase()),

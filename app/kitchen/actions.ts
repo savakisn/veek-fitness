@@ -235,20 +235,30 @@ export async function saveRecipe(input: {
   proteinGrams?: number | null;
   prepMinutes?: number | null;
   items: { item: string; quantity?: string }[];
+  steps?: string[] | null;
 }) {
   const db = await getDb();
   const name = input.name.trim();
   if (!name) return;
+  // Note: favorite is intentionally not in the update set, so re-saving a
+  // bookmarked recipe doesn't clear its favorite tag.
   const row = {
     blurb: input.blurb ?? null,
     proteinGrams: input.proteinGrams ?? null,
     prepMinutes: input.prepMinutes ?? null,
     items: input.items ?? [],
+    steps: input.steps ?? null,
   };
   await db
     .insert(savedRecipes)
     .values({ name, ...row })
     .onConflictDoUpdate({ target: savedRecipes.name, set: row });
+  revalidatePath("/kitchen");
+}
+
+export async function toggleFavorite(id: number, favorite: boolean) {
+  const db = await getDb();
+  await db.update(savedRecipes).set({ favorite }).where(eq(savedRecipes.id, id));
   revalidatePath("/kitchen");
 }
 
@@ -261,9 +271,9 @@ export async function deleteSavedRecipe(id: number) {
   revalidatePath("/kitchen");
 }
 
-// Demote a name-only favorite into the Menu as a real saved recipe (AI fills the
-// recipe), and drop the favorite flag.
-export async function moveFavoriteToMenu(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
+// Turn a name-only "liked" favorite into a full, favorited Menu recipe (AI fills
+// the recipe + steps). Used to migrate the old like-based favorites.
+export async function importFavorite(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const n = name.trim();
   if (!n) return { ok: false, error: "No meal." };
   try {
@@ -278,9 +288,11 @@ export async function moveFavoriteToMenu(name: string): Promise<{ ok: true } | {
       proteinGrams: m.proteinGrams ?? null,
       prepMinutes: m.prepMinutes ?? null,
       items: m.ingredients ?? [],
+      steps: m.steps ?? null,
+      favorite: true,
     };
     await db.insert(savedRecipes).values({ name: n, ...row }).onConflictDoUpdate({ target: savedRecipes.name, set: row });
-    await db.delete(mealFeedback).where(eq(mealFeedback.name, n));
+    // Keep the "like" so the planner still favors it; it just no longer shows as a pending import.
     revalidatePath("/kitchen");
     return { ok: true };
   } catch (e) {

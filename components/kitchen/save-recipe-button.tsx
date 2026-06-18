@@ -12,6 +12,7 @@ export type SaveableRecipe = {
   proteinGrams?: number | null;
   prepMinutes?: number | null;
   items: { item: string; quantity?: string }[];
+  steps?: string[] | null;
 };
 
 export function SaveRecipeButton({ recipe }: { recipe: SaveableRecipe }) {
