@@ -153,20 +153,27 @@ export function workoutCoachPrompt(opts: {
   return { system, prompt };
 }
 
+export type WeeklyRecap = { tldr: string; details: string[] };
+
 export function fitnessSummaryPrompt(stats: {
   weekSessions: number;
   weeklyGoal: number;
   streakWeeks: number;
   byCategory: Record<string, number>;
   recentTypes: string[];
+  avgSteps: number;
 }): { system: string; prompt: string } {
   const system =
-    "You are a fitness coach for someone whose goal is staying mobile and protecting their back into old age, not bodybuilding. Write 2-3 short sentences: name one specific thing they did well and one concrete nudge for the week. Plain and warm, like a sharp friend, not a hype machine. No em dashes (use commas or periods). No flattery or hype words like 'crushing it', 'amazing', 'killing it', or 'you've got this'. No emojis.";
+    "You are a fitness coach for someone whose goal is staying mobile and protecting their back into old age, not bodybuilding. A lot of their activity is daily walking, not gym sessions, so count steps as real movement. Plain and warm, like a sharp friend, not a hype machine. No em dashes (use commas or periods). No flattery or hype words like 'crushing it', 'amazing', 'killing it', or 'you've got this'. No emojis. Return ONLY valid JSON, no markdown.";
   const prompt = [
     `Sessions this week: ${stats.weekSessions} (goal ${stats.weeklyGoal}).`,
+    `Average daily steps (last 7 days): ${stats.avgSteps || "no data"}.`,
     `Current streak: ${stats.streakWeeks} weeks.`,
     `By category: ${JSON.stringify(stats.byCategory)}.`,
     `Recent activities: ${stats.recentTypes.join(", ") || "none yet"}.`,
+    "",
+    'Return JSON like {"tldr":"one punchy sentence summarizing the week","details":["one specific thing going well","one concrete nudge for this week"]}.',
+    "tldr is the bold one-line takeaway. details are 2-3 short lines, no headers.",
   ].join("\n");
   return { system, prompt };
 }

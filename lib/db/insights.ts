@@ -24,6 +24,7 @@ export type FitnessStats = {
   streakWeeks: number;
   byCategory: Record<string, number>;
   recentTypes: string[];
+  avgSteps: number; // average daily steps over the last 7 days
 };
 
 export async function getWeeklyStats(user: User): Promise<FitnessStats> {
@@ -43,12 +44,16 @@ export async function getWeeklyStats(user: User): Promise<FitnessStats> {
     byCategory[k] = (byCategory[k] ?? 0) + 1;
   }
 
+  const steps = await getMetricSeries(user.id, "steps", 7);
+  const avgSteps = steps.length ? Math.round(steps.reduce((s, p) => s + p.value, 0) / steps.length) : 0;
+
   return {
     weekSessions: streak.thisWeekCount,
     weeklyGoal: streak.weeklyGoal,
     streakWeeks: streak.streakWeeks,
     byCategory,
     recentTypes: recent.map((w) => w.routineName ?? w.type ?? "Workout"),
+    avgSteps,
   };
 }
 

@@ -9,8 +9,8 @@ import { workouts, users, household, aiInsights, metrics } from "@/lib/db/schema
 import { getCurrentUser } from "@/lib/auth";
 import { getRoutineCards, getRecentWorkouts } from "@/lib/db/queries";
 import { getWeeklyStats } from "@/lib/db/insights";
-import { generateText, generateJSON, AiUnavailableError } from "@/lib/ai";
-import { fitnessSummaryPrompt, workoutCoachPrompt, type CoachPick } from "@/lib/ai/prompts";
+import { generateJSON, AiUnavailableError } from "@/lib/ai";
+import { fitnessSummaryPrompt, workoutCoachPrompt, type CoachPick, type WeeklyRecap } from "@/lib/ai/prompts";
 import { todayISO } from "@/lib/format";
 
 export async function setLocation(location: "home" | "gym") {
@@ -174,20 +174,20 @@ export async function suggestWorkout(input: {
 }
 
 export async function refreshFitnessInsight(): Promise<
-  { ok: true; text: string } | { ok: false; error: string }
+  { ok: true; recap: WeeklyRecap } | { ok: false; error: string }
 > {
   try {
     const user = await getCurrentUser();
     const stats = await getWeeklyStats(user);
     const { system, prompt } = fitnessSummaryPrompt(stats);
-    const text = await generateText(prompt, system);
+    const recap = await generateJSON<WeeklyRecap>(prompt, system);
     const db = await getDb();
     await db
       .insert(aiInsights)
-      .values({ userId: user.id, kind: "weekly", date: todayISO(), text })
-      .onConflictDoUpdate({ target: [aiInsights.userId, aiInsights.kind, aiInsights.date], set: { text } });
+      .values({ userId: user.id, kind: "weekly", date: todayISO(), text: JSON.stringify(recap) })
+      .onConflictDoUpdate({ target: [aiInsights.userId, aiInsights.kind, aiInsights.date], set: { text: JSON.stringify(recap) } });
     revalidatePath("/");
-    return { ok: true, text };
+    return { ok: true, recap };
   } catch (e) {
     if (e instanceof AiUnavailableError) return { ok: false, error: "AI isn't set up yet. Add ANTHROPIC_API_KEY to enable it." };
     return { ok: false, error: "Couldn't generate an insight. Try again." };
