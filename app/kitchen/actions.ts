@@ -254,8 +254,38 @@ export async function saveRecipe(input: {
 
 export async function deleteSavedRecipe(id: number) {
   const db = await getDb();
+  const [r] = await db.select({ name: savedRecipes.name }).from(savedRecipes).where(eq(savedRecipes.id, id));
   await db.delete(savedRecipes).where(eq(savedRecipes.id, id));
+  // Also clear any "favorite" like so it's gone entirely, not lingering up top.
+  if (r?.name) await db.delete(mealFeedback).where(eq(mealFeedback.name, r.name));
   revalidatePath("/kitchen");
+}
+
+// Demote a name-only favorite into the Menu as a real saved recipe (AI fills the
+// recipe), and drop the favorite flag.
+export async function moveFavoriteToMenu(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const n = name.trim();
+  if (!n) return { ok: false, error: "No meal." };
+  try {
+    const h = await getHousehold();
+    const { system, prompt } = recipeForPrompt({ name: n, household: h.householdSize, dislikes: h.dislikes });
+    const res = await generateJSON<{ meal: PlannedMeal }>(prompt, system);
+    const m = res?.meal;
+    if (!m?.name) return { ok: false, error: "Couldn't build that recipe. Try again." };
+    const db = await getDb();
+    const row = {
+      blurb: m.blurb ?? null,
+      proteinGrams: m.proteinGrams ?? null,
+      prepMinutes: m.prepMinutes ?? null,
+      items: m.ingredients ?? [],
+    };
+    await db.insert(savedRecipes).values({ name: n, ...row }).onConflictDoUpdate({ target: savedRecipes.name, set: row });
+    await db.delete(mealFeedback).where(eq(mealFeedback.name, n));
+    revalidatePath("/kitchen");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: aiError(e) };
+  }
 }
 
 export async function addSavedToGrocery(

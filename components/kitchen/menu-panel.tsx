@@ -3,9 +3,9 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ListPlus, Trash2, Clock, Beef, Star, Plus } from "lucide-react";
+import { ListPlus, Trash2, Clock, Beef, Star, Plus, X, ArrowDownToLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { addSavedToGrocery, deleteSavedRecipe, addMealToPlan } from "@/app/kitchen/actions";
+import { addSavedToGrocery, deleteSavedRecipe, addMealToPlan, moveFavoriteToMenu, rateMeal } from "@/app/kitchen/actions";
 import type { SavedRecipe } from "@/lib/db/schema";
 
 export function MenuPanel({ recipes, favorites = [] }: { recipes: SavedRecipe[]; favorites?: string[] }) {
@@ -22,8 +22,8 @@ export function MenuPanel({ recipes, favorites = [] }: { recipes: SavedRecipe[];
           </p>
           <div className="divide-y rounded-xl border">
             {favorites.map((name) => (
-              <div key={name} className="flex items-center justify-between gap-2 px-3 py-2.5">
-                <span className="text-sm font-medium">{name}</span>
+              <div key={name} className="flex items-center justify-between gap-1 px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -38,8 +38,39 @@ export function MenuPanel({ recipes, favorites = [] }: { recipes: SavedRecipe[];
                     })
                   }
                 >
-                  <Plus className="size-4" /> Add to week
+                  <Plus className="size-4" /> Week
                 </Button>
+                <button
+                  type="button"
+                  aria-label="Move to Menu"
+                  disabled={addingFav}
+                  onClick={() =>
+                    startFav(async () => {
+                      const res = await moveFavoriteToMenu(name);
+                      if (res.ok) {
+                        toast.success("Moved to Menu.");
+                        router.refresh();
+                      } else toast.error(res.error);
+                    })
+                  }
+                  className="text-muted-foreground hover:text-foreground p-1.5"
+                >
+                  <ArrowDownToLine className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Remove from favorites"
+                  onClick={() =>
+                    startFav(async () => {
+                      await rateMeal(name, null);
+                      toast("Removed from favorites.");
+                      router.refresh();
+                    })
+                  }
+                  className="text-muted-foreground hover:text-destructive p-1.5"
+                >
+                  <X className="size-4" />
+                </button>
               </div>
             ))}
           </div>

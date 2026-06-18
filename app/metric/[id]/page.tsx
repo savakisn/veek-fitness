@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -7,7 +8,7 @@ import { getMetricSeries } from "@/lib/db/insights";
 import { fitnessAgeBreakdown } from "@/lib/fitness-age";
 import { MetricChart } from "@/components/metric-chart";
 import { FitnessAgeBreakdownCard } from "@/components/fitness-age-breakdown";
-import { BodyBatteryToday } from "@/components/body-battery-today";
+import { BodyBatterySection } from "@/components/body-battery-section";
 import { LogWeight } from "@/components/log-weight";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,10 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
   const user = await getCurrentUser();
   // The body battery trend that matters is the daily peak, stored separately.
   const seriesType = id === "body_battery" ? "body_battery_high" : id;
-  const series = await getMetricSeries(user.id, seriesType, 30);
+  const raw = await getMetricSeries(user.id, seriesType, 30);
+  // A daily body-battery "high" under 20 is a sync gap, not a real low — drop it
+  // so one bad day doesn't tank the chart.
+  const series = id === "body_battery" ? raw.filter((p) => p.value >= 20) : raw;
   const breakdown = id === "fitness_age" ? await fitnessAgeBreakdown(await getDb(), user.id) : null;
   const fmt = (v: number) => `${v.toFixed(meta.decimals)}${meta.unit}`;
   const latest = series.length ? series[series.length - 1] : null;
@@ -57,7 +61,9 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
 
       {id === "body_battery" && (
         <div className="mt-5">
-          <BodyBatteryToday />
+          <Suspense fallback={<div className="bg-muted h-56 w-full animate-pulse rounded-2xl" />}>
+            <BodyBatterySection />
+          </Suspense>
         </div>
       )}
 

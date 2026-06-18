@@ -37,7 +37,14 @@ export function KitchenTabs({
         <MealPlanPanel plan={plan} feedback={feedback} />
       </TabsContent>
       <TabsContent value="menu" className="mt-4">
-        <MenuPanel recipes={saved} favorites={Object.keys(feedback).filter((n) => feedback[n] === "like")} />
+        <MenuPanel
+          recipes={saved}
+          favorites={Object.keys(feedback).filter(
+            (n) =>
+              feedback[n] === "like" &&
+              !saved.some((s) => s.name.trim().toLowerCase() === n.trim().toLowerCase()),
+          )}
+        />
       </TabsContent>
       <TabsContent value="grocery" className="mt-4">
         <GroceryPanel items={grocery} hasPlan={!!plan} />
