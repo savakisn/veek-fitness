@@ -32,7 +32,9 @@ export default async function MetricPage({ params }: { params: Promise<{ id: str
   if (!meta) notFound();
 
   const user = await getCurrentUser();
-  const series = await getMetricSeries(user.id, id, 30);
+  // The body battery trend that matters is the daily peak, stored separately.
+  const seriesType = id === "body_battery" ? "body_battery_high" : id;
+  const series = await getMetricSeries(user.id, seriesType, 30);
   const breakdown = id === "fitness_age" ? await fitnessAgeBreakdown(await getDb(), user.id) : null;
   const fmt = (v: number) => `${v.toFixed(meta.decimals)}${meta.unit}`;
   const latest = series.length ? series[series.length - 1] : null;

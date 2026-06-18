@@ -59,7 +59,10 @@ export function MealPlanPanel({
   }
   function add() {
     const name = adding.trim();
-    if (!name) return;
+    if (!name) {
+      toast.error("Type a meal first.");
+      return;
+    }
     startAdd(async () => {
       const res = await addMealToPlan(name);
       if (!res.ok) {
@@ -180,7 +183,7 @@ export function MealPlanPanel({
           placeholder="Add something else? e.g. chicken sandwiches"
           className="w-full bg-transparent text-sm outline-none"
         />
-        <Button onClick={add} disabled={addPending || !adding.trim()} size="sm" variant="outline" className="shrink-0">
+        <Button onClick={add} disabled={addPending} size="sm" variant="outline" className="shrink-0">
           <Plus className={cn("size-4", addPending && "animate-spin")} /> {addPending ? "Adding…" : "Add"}
         </Button>
       </div>

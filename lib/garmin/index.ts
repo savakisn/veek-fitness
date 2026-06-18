@@ -201,6 +201,10 @@ export async function fetchLiveMetrics(): Promise<{ updated: number }> {
         await upsertMetric(db, userId, todayStr, "body_battery", bb);
         updated++;
       }
+      // Daily peak for the 30-day chart (the most meaningful body-battery trend).
+      if (typeof s?.bodyBatteryHighestValue === "number" && s.bodyBatteryHighestValue > 0) {
+        await upsertMetric(db, userId, todayStr, "body_battery_high", s.bodyBatteryHighestValue);
+      }
       // Steps from the same fresh summary, so they update as fast as body battery.
       if (typeof s?.totalSteps === "number" && s.totalSteps > 0) {
         await upsertMetric(db, userId, todayStr, "steps", s.totalSteps);
@@ -412,6 +416,9 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
         await upsertMetric(db, userId, today, "body_battery", bb);
         metricCount++;
       }
+      if (typeof s?.bodyBatteryHighestValue === "number" && s.bodyBatteryHighestValue > 0) {
+        await upsertMetric(db, userId, today, "body_battery_high", s.bodyBatteryHighestValue);
+      }
       if (typeof s?.totalSteps === "number" && s.totalSteps > 0) {
         await upsertMetric(db, userId, today, "steps", s.totalSteps);
         metricCount++;
@@ -423,6 +430,40 @@ export async function syncGarmin(): Promise<GarminSyncResult> {
     }
   } catch {
     /* body battery unavailable */
+  }
+  // Backfill recent daily highs from intraday data so the 30-day chart isn't sparse.
+  try {
+    const haveHigh = new Set(
+      (
+        await db
+          .select({ date: metrics.date })
+          .from(metrics)
+          .where(and(eq(metrics.userId, userId), eq(metrics.metricType, "body_battery_high")))
+      ).map((r) => r.date),
+    );
+    for (let i = 1; i < 14; i++) {
+      const dStr = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      if (haveHigh.has(dStr)) continue;
+      try {
+        const r = await client.get<{ bodyBatteryValuesArray?: (number | string)[][] }>(
+          `https://connectapi.garmin.com/wellness-service/wellness/dailyStress/${dStr}`,
+        );
+        let max = 0;
+        for (const e of r?.bodyBatteryValuesArray ?? [])
+          for (let k = 1; k < e.length; k++) {
+            const n = Number(e[k]);
+            if (Number.isFinite(n) && n >= 0 && n <= 100 && n > max) max = n;
+          }
+        if (max > 0) {
+          await upsertMetric(db, userId, dStr, "body_battery_high", max);
+          metricCount++;
+        }
+      } catch {
+        /* day unavailable */
+      }
+    }
+  } catch {
+    /* backfill unavailable */
   }
 
   // Derived fitness age, from Garmin's VO2max when available, best-effort.

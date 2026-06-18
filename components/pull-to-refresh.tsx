@@ -23,7 +23,8 @@ export function PullToRefresh() {
     function onMove(e: TouchEvent) {
       if (startY.current == null) return;
       const dy = e.touches[0].clientY - startY.current;
-      if (dy > 0) setPull(Math.min(dy * 0.5, THRESHOLD + 20));
+      // Deadzone so a normal tap (tiny drift) never engages the pull.
+      if (dy > 14) setPull(Math.min((dy - 14) * 0.5, THRESHOLD + 20));
     }
     function onEnd() {
       if (startY.current == null) return;

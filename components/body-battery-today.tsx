@@ -10,7 +10,7 @@ export function BodyBatteryToday() {
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/garmin/body-battery", { method: "GET" })
+    fetch("/api/garmin/body-battery", { method: "GET", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => alive && setSamples(d?.samples ?? []))
       .catch(() => alive && setSamples([]));
@@ -22,6 +22,12 @@ export function BodyBatteryToday() {
   if (samples === null) {
     return <div className="bg-muted h-56 w-full animate-pulse rounded-2xl" />;
   }
-  if (samples.length < 2) return null;
+  if (samples.length < 2) {
+    return (
+      <div className="bg-card text-muted-foreground rounded-2xl border p-4 text-sm">
+        Today&apos;s curve isn&apos;t available yet. Pull to refresh once your watch has synced.
+      </div>
+    );
+  }
   return <BodyBatteryChart samples={samples} />;
 }
