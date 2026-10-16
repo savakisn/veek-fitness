@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ChefHat, Clock, Beef, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,23 +18,39 @@ export function FridgePanel({
   pantry: PantryItem[];
   feedback: Record<string, Sentiment>;
 }) {
-  const router = useRouter();
   const [recipes, setRecipes] = useState<RecipeSuggestion[] | null>(null);
   const [adding, setAdding] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, startAi] = useTransition();
+  const [, start] = useTransition();
+  // Pantry edits show instantly; the action's revalidation brings the real rows.
+  const [items, change] = useOptimistic(
+    pantry,
+    (list: PantryItem[], c: { add: string } | { remove: number }) =>
+      "add" in c
+        ? [{ id: -Date.now(), name: c.add, category: null, location: "fridge", quantity: null, useBy: null, createdAt: new Date() }, ...list]
+        : list.filter((i) => i.id !== c.remove),
+  );
 
   function add() {
     const name = adding.trim();
     if (!name) return;
     setAdding("");
     start(async () => {
+      change({ add: name });
       await addPantryItem({ name });
-      router.refresh();
+    });
+  }
+
+  function remove(id: number) {
+    if (id < 0) return;
+    start(async () => {
+      change({ remove: id });
+      await deletePantryItem(id);
     });
   }
 
   function run() {
-    start(async () => {
+    startAi(async () => {
       const res = await fridgeToRecipe();
       if (!res.ok) {
         toast.error(res.error);
@@ -50,29 +65,34 @@ export function FridgePanel({
     <div className="space-y-4">
       <div>
         <p className="text-sm font-medium">What&apos;s on hand</p>
-        <div className="mt-2 flex gap-2">
+        <form
+          className="mt-2 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
+          }}
+        >
           <Input
             value={adding}
             onChange={(e) => setAdding(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
             placeholder="Add an item (e.g. chicken thighs)"
+            enterKeyHint="done"
+            className="h-11"
           />
-          <Button onClick={add} size="icon" variant="outline">
+          <Button type="submit" size="icon" variant="outline" className="size-11" aria-label="Add item">
             <Plus className="size-4" />
           </Button>
-        </div>
-        {pantry.length > 0 && (
+        </form>
+        {items.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {pantry.map((i) => (
-              <span key={i.id} className="bg-muted/50 flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm">
+            {items.map((i) => (
+              <span key={i.id} className="bg-muted/50 flex items-center rounded-full border py-0.5 pl-3 text-sm">
                 {i.name}
                 <button
-                  aria-label="Remove"
-                  onClick={() => start(async () => {
-                    await deletePantryItem(i.id);
-                    router.refresh();
-                  })}
-                  className="text-muted-foreground hover:text-destructive"
+                  type="button"
+                  aria-label={`Remove ${i.name}`}
+                  onClick={() => remove(i.id)}
+                  className="text-muted-foreground hover:text-destructive p-2"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -82,10 +102,10 @@ export function FridgePanel({
         )}
       </div>
 
-      <Button onClick={run} disabled={pending || pantry.length === 0} className="h-11 w-full">
+      <Button onClick={run} disabled={pending || items.length === 0} className="h-11 w-full">
         <ChefHat className="size-4" /> {pending ? "Thinking…" : "What can I make?"}
       </Button>
-      {pantry.length === 0 && (
+      {items.length === 0 && (
         <p className="text-muted-foreground text-xs">Add a few items above and it&apos;ll suggest easy, high-protein meals.</p>
       )}
 

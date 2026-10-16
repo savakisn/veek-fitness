@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { logWeight } from "@/app/actions";
 
 export function LogWeight() {
-  const router = useRouter();
   const [val, setVal] = useState("");
   const [pending, startT] = useTransition();
 
@@ -21,7 +19,6 @@ export function LogWeight() {
       await logWeight(lbs);
       setVal("");
       toast.success("Weight logged.");
-      router.refresh();
     });
   }
 

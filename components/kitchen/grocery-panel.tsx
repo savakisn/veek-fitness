@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ListPlus, Share2, Trash2, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,44 +14,41 @@ import {
 } from "@/app/kitchen/actions";
 import type { GroceryItem } from "@/lib/db/schema";
 
-export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan: boolean }) {
-  const router = useRouter();
-  const [adding, setAdding] = useState("");
-  const [animating, setAnimating] = useState<Set<number>>(new Set());
-  const [pending, start] = useTransition();
+type Change =
+  | { type: "toggle"; id: number; checked: boolean }
+  | { type: "add"; name: string }
+  | { type: "clear" };
 
-  // On check, play the checkmark first, then persist + reorder to the bottom.
+function apply(items: GroceryItem[], c: Change): GroceryItem[] {
+  if (c.type === "toggle") return items.map((i) => (i.id === c.id ? { ...i, checked: c.checked } : i));
+  if (c.type === "clear") return [];
+  const temp: GroceryItem = { id: -Date.now(), name: c.name, quantity: null, checked: false, createdAt: new Date() };
+  return [temp, ...items];
+}
+
+// Every tap shows its result immediately (useOptimistic); the server action's
+// revalidation then re-renders the list in its real order, so a checked item
+// settles to the bottom a moment later. No router.refresh: the action response
+// already carries the re-render.
+export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan: boolean }) {
+  const [adding, setAdding] = useState("");
+  const [list, change] = useOptimistic(items, apply);
+  const [building, startBuild] = useTransition();
+  const [, start] = useTransition();
+
   function toggle(item: GroceryItem) {
-    if (item.checked) {
-      start(async () => {
-        await toggleGrocery(item.id, false);
-        router.refresh();
-      });
-      return;
-    }
-    setAnimating((prev) => new Set(prev).add(item.id));
-    setTimeout(() => {
-      start(async () => {
-        await toggleGrocery(item.id, true);
-        router.refresh();
-        setAnimating((prev) => {
-          const next = new Set(prev);
-          next.delete(item.id);
-          return next;
-        });
-      });
-    }, 450);
+    if (item.id < 0) return; // not saved yet
+    start(async () => {
+      change({ type: "toggle", id: item.id, checked: !item.checked });
+      await toggleGrocery(item.id, !item.checked);
+    });
   }
 
   function build() {
-    start(async () => {
+    startBuild(async () => {
       const res = await buildGroceryFromPlan();
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success(`${res.count} items added from your plan.`);
-      router.refresh();
+      if (!res.ok) toast.error(res.error);
+      else toast.success(`${res.count} items added from your plan.`);
     });
   }
 
@@ -61,13 +57,20 @@ export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan
     if (!name) return;
     setAdding("");
     start(async () => {
+      change({ type: "add", name });
       await addGroceryItem(name);
-      router.refresh();
+    });
+  }
+
+  function clear() {
+    start(async () => {
+      change({ type: "clear" });
+      await clearGrocery();
     });
   }
 
   async function share() {
-    const text = items.map((i) => `- ${i.name}${i.quantity ? ` (${i.quantity})` : ""}`).join("\n");
+    const text = list.map((i) => `- ${i.name}${i.quantity ? ` (${i.quantity})` : ""}`).join("\n");
     const payload = `Grocery list\n${text}`;
     try {
       if (navigator.share) await navigator.share({ title: "Grocery list", text: payload });
@@ -83,60 +86,70 @@ export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Button onClick={build} disabled={pending} variant="outline" className="flex-1">
-          <ListPlus className="size-4" /> Build from plan
+        <Button onClick={build} disabled={building} variant="outline" className="h-11 flex-1">
+          <ListPlus className="size-4" /> {building ? "Building…" : "Build from plan"}
         </Button>
-        <Button onClick={share} disabled={items.length === 0} variant="outline">
+        <Button onClick={share} disabled={list.length === 0} variant="outline" className="h-11">
           <Share2 className="size-4" /> Share
         </Button>
       </div>
       {!hasPlan && <p className="text-muted-foreground text-xs">Generate a meal plan first, then build the list from it.</p>}
 
-      <div className="flex gap-2">
-        <Input value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="Add an item" onKeyDown={(e) => e.key === "Enter" && add()} />
-        <Button onClick={add} size="icon" variant="outline">
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+      >
+        <Input
+          value={adding}
+          onChange={(e) => setAdding(e.target.value)}
+          placeholder="Add an item"
+          enterKeyHint="done"
+          className="h-11"
+        />
+        <Button type="submit" size="icon" variant="outline" className="size-11" aria-label="Add item">
           <Plus className="size-4" />
         </Button>
-      </div>
+      </form>
 
-      {items.length === 0 ? (
+      {list.length === 0 ? (
         <p className="text-muted-foreground text-sm">Your list is empty.</p>
       ) : (
         <ul className="divide-y rounded-xl border">
-          {items.map((i) => {
-            const done = i.checked || animating.has(i.id);
-            return (
-              <li key={i.id} className="flex items-center gap-3 px-4 py-2.5 transition-opacity">
-                <button
-                  type="button"
-                  aria-label={done ? "Uncheck" : "Check off"}
-                  onClick={() => toggle(i)}
+          {list.map((i) => (
+            <li key={i.id}>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={i.checked}
+                onClick={() => toggle(i)}
+                className="active:bg-accent/40 flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors"
+              >
+                <span
                   className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-                    done ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
+                    "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
+                    i.checked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
                   )}
                 >
-                  <Check
-                    className={cn("size-3.5 transition-transform duration-200", done ? "scale-100" : "scale-0")}
-                  />
-                </button>
-                <span className={cn("flex-1 text-sm transition-colors", done && "text-muted-foreground line-through")}>
+                  <Check className={cn("size-4 transition-transform duration-150", i.checked ? "scale-100" : "scale-0")} />
+                </span>
+                <span className={cn("flex-1 text-sm transition-colors", i.checked && "text-muted-foreground line-through")}>
                   {i.name}
                   {i.quantity ? <span className="text-muted-foreground"> · {i.quantity}</span> : null}
                 </span>
-              </li>
-            );
-          })}
+              </button>
+            </li>
+          ))}
         </ul>
       )}
 
-      {items.length > 0 && (
+      {list.length > 0 && (
         <button
-          onClick={() => start(async () => {
-            await clearGrocery();
-            router.refresh();
-          })}
-          className="text-muted-foreground hover:text-destructive flex items-center gap-1 text-xs"
+          type="button"
+          onClick={clear}
+          className="text-muted-foreground active:text-destructive -mx-2 flex min-h-11 items-center gap-1 px-2 text-xs"
         >
           <Trash2 className="size-3.5" /> Clear list
         </button>

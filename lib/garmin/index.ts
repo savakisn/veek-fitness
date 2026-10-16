@@ -169,58 +169,70 @@ export async function fetchLiveMetrics(): Promise<{ updated: number }> {
   const todayStr = isoDate(today);
   let updated = 0;
 
-  try {
-    const steps = (await client.getSteps(today)) as unknown;
-    if (typeof steps === "number" && steps > 0) {
-      await upsertMetric(db, userId, todayStr, "steps", steps);
-      updated++;
-    }
-  } catch {
-    /* steps unavailable */
-  }
-  try {
-    const hr = (await client.getHeartRate(today)) as unknown as { restingHeartRate?: number };
-    if (typeof hr?.restingHeartRate === "number" && hr.restingHeartRate > 0) {
-      await upsertMetric(db, userId, todayStr, "resting_hr", hr.restingHeartRate);
-      updated++;
-    }
-  } catch {
-    /* resting hr unavailable */
-  }
-  try {
-    const profile = (await client.getUserProfile()) as unknown as { displayName?: string };
-    if (profile?.displayName) {
-      const s = await client.get<{
-        bodyBatteryMostRecentValue?: number;
-        bodyBatteryHighestValue?: number;
-        bodyBatteryChargedValue?: number;
-        bodyBatteryDrainedValue?: number;
-        totalSteps?: number;
-      }>(`https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${todayStr}`);
-      const bb = s?.bodyBatteryMostRecentValue ?? s?.bodyBatteryHighestValue;
-      if (typeof bb === "number" && bb > 0) {
-        await upsertMetric(db, userId, todayStr, "body_battery", bb);
+  // Independent Garmin calls run together; sequentially they made every app open
+  // wait on several round trips. The daily summary is the fresher steps source, so
+  // getSteps is only the fallback when the summary has none.
+  const restingHr = async () => {
+    try {
+      const hr = (await client.getHeartRate(today)) as unknown as { restingHeartRate?: number };
+      if (typeof hr?.restingHeartRate === "number" && hr.restingHeartRate > 0) {
+        await upsertMetric(db, userId, todayStr, "resting_hr", hr.restingHeartRate);
         updated++;
       }
-      // Daily peak for the 30-day chart (the most meaningful body-battery trend).
-      if (typeof s?.bodyBatteryHighestValue === "number" && s.bodyBatteryHighestValue > 0) {
-        await upsertMetric(db, userId, todayStr, "body_battery_high", s.bodyBatteryHighestValue);
+    } catch {
+      /* resting hr unavailable */
+    }
+  };
+  const summary = async () => {
+    let gotSteps = false;
+    try {
+      const profile = (await client.getUserProfile()) as unknown as { displayName?: string };
+      if (profile?.displayName) {
+        const s = await client.get<{
+          bodyBatteryMostRecentValue?: number;
+          bodyBatteryHighestValue?: number;
+          bodyBatteryChargedValue?: number;
+          bodyBatteryDrainedValue?: number;
+          totalSteps?: number;
+        }>(`https://connectapi.garmin.com/usersummary-service/usersummary/daily/${profile.displayName}?calendarDate=${todayStr}`);
+        const writes: Promise<void>[] = [];
+        const bb = s?.bodyBatteryMostRecentValue ?? s?.bodyBatteryHighestValue;
+        if (typeof bb === "number" && bb > 0) {
+          writes.push(upsertMetric(db, userId, todayStr, "body_battery", bb));
+          updated++;
+        }
+        // Daily peak for the 30-day chart (the most meaningful body-battery trend).
+        if (typeof s?.bodyBatteryHighestValue === "number" && s.bodyBatteryHighestValue > 0)
+          writes.push(upsertMetric(db, userId, todayStr, "body_battery_high", s.bodyBatteryHighestValue));
+        if (typeof s?.totalSteps === "number" && s.totalSteps > 0) {
+          writes.push(upsertMetric(db, userId, todayStr, "steps", s.totalSteps));
+          gotSteps = true;
+          updated++;
+        }
+        if (typeof s?.bodyBatteryChargedValue === "number")
+          writes.push(upsertMetric(db, userId, todayStr, "body_battery_charged", s.bodyBatteryChargedValue));
+        if (typeof s?.bodyBatteryDrainedValue === "number")
+          writes.push(upsertMetric(db, userId, todayStr, "body_battery_drained", s.bodyBatteryDrainedValue));
+        await Promise.all(writes);
       }
-      // Steps from the same fresh summary, so they update as fast as body battery.
-      if (typeof s?.totalSteps === "number" && s.totalSteps > 0) {
-        await upsertMetric(db, userId, todayStr, "steps", s.totalSteps);
+    } catch {
+      /* body battery unavailable */
+    }
+    if (gotSteps) return;
+    try {
+      const steps = (await client.getSteps(today)) as unknown;
+      if (typeof steps === "number" && steps > 0) {
+        await upsertMetric(db, userId, todayStr, "steps", steps);
         updated++;
       }
-      if (typeof s?.bodyBatteryChargedValue === "number")
-        await upsertMetric(db, userId, todayStr, "body_battery_charged", s.bodyBatteryChargedValue);
-      if (typeof s?.bodyBatteryDrainedValue === "number")
-        await upsertMetric(db, userId, todayStr, "body_battery_drained", s.bodyBatteryDrainedValue);
+    } catch {
+      /* steps unavailable */
     }
-  } catch {
-    /* body battery unavailable */
-  }
-  // Recompute fitness age each open. Pull Garmin's VO2max first so it's the input.
-  await pullVo2Max(db, client, userId, todayStr);
+  };
+  // Pull Garmin's VO2max alongside, since it's the input to fitness age below.
+  await Promise.all([restingHr(), summary(), pullVo2Max(db, client, userId, todayStr)]);
+
+  // Recompute fitness age each open.
   try {
     if (await upsertFitnessAge(db, userId)) updated++;
   } catch {

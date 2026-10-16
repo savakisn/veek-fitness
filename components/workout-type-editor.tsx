@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { updateWorkoutType } from "@/app/actions";
 
 export function WorkoutTypeEditor({ id, type }: { id: number; type: string }) {
-  const router = useRouter();
   const [value, setValue] = useState(type);
   const [pending, start] = useTransition();
 
@@ -17,7 +15,6 @@ export function WorkoutTypeEditor({ id, type }: { id: number; type: string }) {
     start(async () => {
       await updateWorkoutType(id, value);
       toast.success("Updated.");
-      router.refresh();
     });
   }
 
