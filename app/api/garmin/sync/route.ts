@@ -16,8 +16,8 @@ async function authorized(req: Request): Promise<boolean> {
     const userId = await verifyToken((await cookies()).get("vf_user")?.value, authSecret);
     if (userId) return true;
   }
-  // No secrets configured at all (local dev) → open.
-  return !secret && !authSecret;
+  // No secrets configured at all → open in local dev only.
+  return !secret && !authSecret && process.env.NODE_ENV !== "production";
 }
 
 async function run(req: Request) {

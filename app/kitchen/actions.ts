@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
 import { startOfWeek } from "date-fns";
 import { getDb } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 import { pantryItems, mealPlans, groceryItems, mealFeedback, savedRecipes } from "@/lib/db/schema";
 import {
   getPantry,
@@ -37,6 +38,7 @@ export async function addPantryItem(input: {
   quantity?: string | null;
   useBy?: string | null;
 }) {
+  await getCurrentUser();
   const db = await getDb();
   await db.insert(pantryItems).values({
     name: input.name.trim(),
@@ -49,6 +51,7 @@ export async function addPantryItem(input: {
 }
 
 export async function deletePantryItem(id: number) {
+  await getCurrentUser();
   const db = await getDb();
   await db.delete(pantryItems).where(eq(pantryItems.id, id));
   revalidatePath("/kitchen");
@@ -56,6 +59,7 @@ export async function deletePantryItem(id: number) {
 
 // --- Meal plan (AI) ---
 export async function rateMeal(name: string, sentiment: "like" | "dislike" | null) {
+  await getCurrentUser();
   const db = await getDb();
   const n = name.trim();
   if (!n) return;
@@ -73,6 +77,7 @@ export async function rateMeal(name: string, sentiment: "like" | "dislike" | nul
 // "Not this week" — drop a meal from the current plan (it can resurface later;
 // for a permanent no, thumbs-down steers the AI to avoid it).
 export async function dismissMeal(name: string) {
+  await getCurrentUser();
   const db = await getDb();
   const plan = await getCurrentMealPlan();
   if (!plan) return;
@@ -91,6 +96,7 @@ export async function dismissMeal(name: string) {
 // Remove a meal and refill the slot with a fresh idea, so the week stays a full
 // shopping list. Used by "not this week" and disliking a planned meal.
 export async function replaceMealInPlan(name: string): Promise<{ ok: boolean }> {
+  await getCurrentUser();
   const db = await getDb();
   const plan = await getCurrentMealPlan();
   if (!plan) return { ok: false };
@@ -124,6 +130,7 @@ export async function replaceMealInPlan(name: string): Promise<{ ok: boolean }> 
 }
 
 export async function generateMealPlan(note?: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await getCurrentUser();
   try {
     const [h, pantry, feedback] = await Promise.all([getHousehold(), getPantry(), getMealFeedback()]);
     const taste = splitFeedback(feedback);
@@ -150,6 +157,7 @@ export async function generateMealPlan(note?: string): Promise<{ ok: true } | { 
 // Add a specific dish the user typed; AI fills in the real recipe so it can
 // flow into the grocery list. Appends to the current plan (or starts one).
 export async function addMealToPlan(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await getCurrentUser();
   const n = name.trim();
   if (!n) return { ok: false, error: "Type a meal first." };
   try {
@@ -181,6 +189,7 @@ export async function addMealToPlan(name: string): Promise<{ ok: true } | { ok: 
 export async function fridgeToRecipe(): Promise<
   { ok: true; recipes: RecipeSuggestion[] } | { ok: false; error: string }
 > {
+  await getCurrentUser();
   try {
     const [h, pantry, feedback] = await Promise.all([getHousehold(), getPantry(), getMealFeedback()]);
     if (pantry.length === 0) return { ok: false, error: "Add a few pantry items first so it has something to work with." };
@@ -201,6 +210,7 @@ export async function fridgeToRecipe(): Promise<
 
 // --- Grocery ---
 export async function buildGroceryFromPlan(): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  await getCurrentUser();
   const plan = await getCurrentMealPlan();
   if (!plan) return { ok: false, error: "Generate a meal plan first." };
   const pantryNames = (await getPantry()).map((i) => i.name.toLowerCase());
@@ -237,6 +247,7 @@ export async function saveRecipe(input: {
   items: { item: string; quantity?: string }[];
   steps?: string[] | null;
 }) {
+  await getCurrentUser();
   const db = await getDb();
   const name = input.name.trim();
   if (!name) return;
@@ -257,12 +268,14 @@ export async function saveRecipe(input: {
 }
 
 export async function toggleFavorite(id: number, favorite: boolean) {
+  await getCurrentUser();
   const db = await getDb();
   await db.update(savedRecipes).set({ favorite }).where(eq(savedRecipes.id, id));
   revalidatePath("/kitchen");
 }
 
 export async function deleteSavedRecipe(id: number) {
+  await getCurrentUser();
   const db = await getDb();
   const [r] = await db.select({ name: savedRecipes.name }).from(savedRecipes).where(eq(savedRecipes.id, id));
   await db.delete(savedRecipes).where(eq(savedRecipes.id, id));
@@ -274,6 +287,7 @@ export async function deleteSavedRecipe(id: number) {
 // Turn a name-only "liked" favorite into a full, favorited Menu recipe (AI fills
 // the recipe + steps). Used to migrate the old like-based favorites.
 export async function importFavorite(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await getCurrentUser();
   const n = name.trim();
   if (!n) return { ok: false, error: "No meal." };
   try {
@@ -303,6 +317,7 @@ export async function importFavorite(name: string): Promise<{ ok: true } | { ok:
 export async function addSavedToGrocery(
   id: number,
 ): Promise<{ ok: true; added: number } | { ok: false; error: string }> {
+  await getCurrentUser();
   const db = await getDb();
   const [recipe] = await db.select().from(savedRecipes).where(eq(savedRecipes.id, id));
   if (!recipe) return { ok: false, error: "Recipe not found." };
@@ -326,18 +341,21 @@ export async function addSavedToGrocery(
 }
 
 export async function toggleGrocery(id: number, checked: boolean) {
+  await getCurrentUser();
   const db = await getDb();
   await db.update(groceryItems).set({ checked }).where(eq(groceryItems.id, id));
   revalidatePath("/kitchen");
 }
 
 export async function addGroceryItem(name: string) {
+  await getCurrentUser();
   const db = await getDb();
   await db.insert(groceryItems).values({ name: name.trim() });
   revalidatePath("/kitchen");
 }
 
 export async function clearGrocery() {
+  await getCurrentUser();
   const db = await getDb();
   await db.delete(groceryItems);
   revalidatePath("/kitchen");
