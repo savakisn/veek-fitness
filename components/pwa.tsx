@@ -22,12 +22,13 @@ export function Pwa({ renderedAt }: { renderedAt: number }) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
     // A few seconds of slack for clock skew between the server and the phone.
-    if (renderedAt < performance.timeOrigin - CLOCK_SLACK_MS) router.refresh();
+    // Offline there's nothing fresher to get; static pages (/log) also land here.
+    if (navigator.onLine && renderedAt < performance.timeOrigin - CLOCK_SLACK_MS) router.refresh();
 
     let hiddenAt = 0;
     const onVisibility = () => {
       if (document.visibilityState === "hidden") hiddenAt = Date.now();
-      else if (hiddenAt && Date.now() - hiddenAt > STALE_MS) router.refresh();
+      else if (navigator.onLine && hiddenAt && Date.now() - hiddenAt > STALE_MS) router.refresh();
     };
     const sync = async () => {
       const n = await flushQueue();

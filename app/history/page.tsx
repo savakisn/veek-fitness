@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getRecentWorkouts, getStreak } from "@/lib/db/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
-import { DeleteWorkoutButton } from "@/components/delete-workout-button";
+import { DeletableWorkoutRow } from "@/components/deletable-workout-row";
 import { prettyDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function HistoryPage() {
         ) : (
           <ul className="divide-y rounded-xl border">
             {workouts.map((w) => (
-              <li key={w.id} className="flex items-center gap-3 px-4 py-3">
+              <DeletableWorkoutRow key={w.id} id={w.id}>
                 <Link href={`/workout/${w.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{w.routineName ?? w.type ?? "Workout"}</p>
@@ -37,8 +37,7 @@ export default async function HistoryPage() {
                     <span className="text-muted-foreground text-sm tabular-nums">{w.durationMinutes}m</span>
                   ) : null}
                 </Link>
-                <DeleteWorkoutButton id={w.id} />
-              </li>
+              </DeletableWorkoutRow>
             ))}
           </ul>
         )}

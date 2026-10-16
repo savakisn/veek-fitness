@@ -14,6 +14,10 @@ import {
 } from "@/app/kitchen/actions";
 import type { GroceryItem } from "@/lib/db/schema";
 
+// Negative ids mark optimistic rows that aren't saved yet.
+let tempId = 0;
+const nextTempId = () => --tempId;
+
 type Change =
   | { type: "toggle"; id: number; checked: boolean }
   | { type: "add"; name: string }
@@ -22,7 +26,7 @@ type Change =
 function apply(items: GroceryItem[], c: Change): GroceryItem[] {
   if (c.type === "toggle") return items.map((i) => (i.id === c.id ? { ...i, checked: c.checked } : i));
   if (c.type === "clear") return [];
-  const temp: GroceryItem = { id: -Date.now(), name: c.name, quantity: null, checked: false, createdAt: new Date() };
+  const temp: GroceryItem = { id: nextTempId(), name: c.name, quantity: null, checked: false, createdAt: new Date() };
   return [temp, ...items];
 }
 

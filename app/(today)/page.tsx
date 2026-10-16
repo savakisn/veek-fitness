@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Plus, ChevronRight } from "lucide-react";
 import { getLocation } from "@/lib/location";
 import { getCurrentUser } from "@/lib/auth";
+import type { User } from "@/lib/db/schema";
 import { getTrainingLoad, getSuggestedRoutine, getRecentWorkouts, type Location } from "@/lib/db/queries";
 import { getLatestInsight, getLatestMetrics, getMetricSeries } from "@/lib/db/insights";
 import { PageHeader } from "@/components/page-header";
@@ -68,7 +69,7 @@ export default async function TodayPage() {
             </Link>
           </div>
           <Suspense fallback={<Block className="h-24" />}>
-            <Suggested location={location} />
+            <Suggested location={location} user={user} />
           </Suspense>
         </section>
 
@@ -107,8 +108,7 @@ async function Insight({ userId }: { userId: number }) {
   return <InsightCard initialText={insight?.text ?? null} />;
 }
 
-async function Suggested({ location }: { location: Location }) {
-  const user = await getCurrentUser();
+async function Suggested({ location, user }: { location: Location; user: User }) {
   const suggested = await getSuggestedRoutine(location, user);
   return suggested ? (
     <RoutineCard card={suggested} />

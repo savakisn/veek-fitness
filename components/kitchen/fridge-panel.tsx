@@ -11,6 +11,10 @@ import { SaveRecipeButton } from "./save-recipe-button";
 import type { RecipeSuggestion } from "@/lib/ai/prompts";
 import type { PantryItem } from "@/lib/db/schema";
 
+// Negative ids mark optimistic rows that aren't saved yet.
+let tempId = 0;
+const nextTempId = () => --tempId;
+
 export function FridgePanel({
   pantry,
   feedback,
@@ -27,7 +31,7 @@ export function FridgePanel({
     pantry,
     (list: PantryItem[], c: { add: string } | { remove: number }) =>
       "add" in c
-        ? [{ id: -Date.now(), name: c.add, category: null, location: "fridge", quantity: null, useBy: null, createdAt: new Date() }, ...list]
+        ? [{ id: nextTempId(), name: c.add, category: null, location: "fridge", quantity: null, useBy: null, createdAt: new Date() }, ...list]
         : list.filter((i) => i.id !== c.remove),
   );
 
