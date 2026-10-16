@@ -29,8 +29,13 @@ export function todayISO(d: Date = new Date()): string {
   return isoDate(d);
 }
 
+// Calendar-day math on date strings, so a 23- or 25-hour DST day can't skip or repeat a date.
+export function addDaysISO(iso: string, n: number): string {
+  return new Date(new Date(iso + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+}
+
 export function daysAgoISO(n: number): string {
-  return isoDate(new Date(Date.now() - n * 86400000));
+  return addDaysISO(todayISO(), -n);
 }
 
 // Monday of the week containing the given date (date-string math, zone-free).
@@ -38,10 +43,6 @@ export function weekStartISO(iso: string = todayISO()): string {
   const d = new Date(iso + "T00:00:00Z");
   const back = (d.getUTCDay() + 6) % 7;
   return new Date(d.getTime() - back * 86400000).toISOString().slice(0, 10);
-}
-
-export function addDaysISO(iso: string, n: number): string {
-  return new Date(new Date(iso + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
 }
 
 export function localHour(d: Date = new Date()): number {

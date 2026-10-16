@@ -44,9 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <PullToRefresh />
         <div className="mx-auto min-h-dvh max-w-md pb-[calc(5rem+env(safe-area-inset-bottom))]">{children}</div>
         <BottomNav />
-        {/* Server render time, so the client can tell a stale cached copy from a fresh one. */}
-        {/* eslint-disable-next-line react-hooks/purity -- server component, renders once per request */}
-        <Pwa renderedAt={Date.now()} />
+        <Pwa />
         <Toaster position="top-center" />
       </body>
     </html>

@@ -10,10 +10,8 @@ import { MealRating, type Sentiment } from "./meal-rating";
 import { SaveRecipeButton } from "./save-recipe-button";
 import type { RecipeSuggestion } from "@/lib/ai/prompts";
 import type { PantryItem } from "@/lib/db/schema";
-
-// Negative ids mark optimistic rows that aren't saved yet.
-let tempId = 0;
-const nextTempId = () => --tempId;
+import { nextTempId } from "@/lib/utils";
+import { saveOrWarn } from "@/lib/save-or-warn";
 
 export function FridgePanel({
   pantry,
@@ -41,7 +39,7 @@ export function FridgePanel({
     setAdding("");
     start(async () => {
       change({ add: name });
-      await addPantryItem({ name });
+      await saveOrWarn(addPantryItem({ name }));
     });
   }
 
@@ -49,7 +47,7 @@ export function FridgePanel({
     if (id < 0) return;
     start(async () => {
       change({ remove: id });
-      await deletePantryItem(id);
+      await saveOrWarn(deletePantryItem(id));
     });
   }
 

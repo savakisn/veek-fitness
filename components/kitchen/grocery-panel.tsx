@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ListPlus, Share2, Trash2, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, nextTempId } from "@/lib/utils";
 import {
   buildGroceryFromPlan,
   toggleGrocery,
@@ -13,10 +13,7 @@ import {
   clearGrocery,
 } from "@/app/kitchen/actions";
 import type { GroceryItem } from "@/lib/db/schema";
-
-// Negative ids mark optimistic rows that aren't saved yet.
-let tempId = 0;
-const nextTempId = () => --tempId;
+import { saveOrWarn } from "@/lib/save-or-warn";
 
 type Change =
   | { type: "toggle"; id: number; checked: boolean }
@@ -44,7 +41,7 @@ export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan
     if (item.id < 0) return; // not saved yet
     start(async () => {
       change({ type: "toggle", id: item.id, checked: !item.checked });
-      await toggleGrocery(item.id, !item.checked);
+      await saveOrWarn(toggleGrocery(item.id, !item.checked));
     });
   }
 
@@ -62,14 +59,14 @@ export function GroceryPanel({ items, hasPlan }: { items: GroceryItem[]; hasPlan
     setAdding("");
     start(async () => {
       change({ type: "add", name });
-      await addGroceryItem(name);
+      await saveOrWarn(addGroceryItem(name));
     });
   }
 
   function clear() {
     start(async () => {
       change({ type: "clear" });
-      await clearGrocery();
+      await saveOrWarn(clearGrocery());
     });
   }
 

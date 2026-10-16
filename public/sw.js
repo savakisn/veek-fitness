@@ -1,27 +1,24 @@
 // Service worker: makes the installed app open instantly.
-// Pages are stale-while-revalidate: the last copy is served at once and refreshed
-// in the background; the app then pulls fresh data itself (see components/pwa.tsx,
-// which compares the page's render time). Static assets are cache-first.
-// Logging-while-offline is handled in the app layer (lib/offline-queue.ts).
-const PAGES = "cadence-pages-v3";
-const ASSETS = "cadence-assets-v3";
+// Pages: the last copy is served at once, tagged with <meta name="sw-cached">, and
+// the app refreshes its data when it sees that tag (components/pwa.tsx). The cached
+// copy itself is updated in the background when it's old. Static assets are
+// cache-first. Logging-while-offline is handled in the app (lib/offline-queue.ts).
+const PAGES = "cadence-pages-v4";
+const ASSETS = "cadence-assets-v4";
 const PRECACHE = ["/manifest.webmanifest", "/icon-192.png"];
-// Static, and the page you need offline. Cached only if it isn't a login redirect.
+// Static pages with no personal data, kept across logouts so they open offline.
 const OFFLINE_PAGES = ["/log"];
+const REVALIDATE_AFTER_MS = 10 * 60 * 1000;
+// Let the app's own refresh go first, so the two renders don't compete at launch.
+const REVALIDATE_DELAY_MS = 5000;
+const CACHED_AT = "x-sw-cached-at";
 
-// Bumped whenever the page cache is cleared, so a background fetch that started
-// before a logout can't write a signed-in page back afterwards.
+// Bumped whenever signed-in pages are cleared, so a fetch that started before a
+// logout can't write a signed-in page back afterwards.
 let generation = 0;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    Promise.all([
-      caches.open(ASSETS).then((c) => c.addAll(PRECACHE)),
-      caches.open(PAGES).then((c) =>
-        Promise.all(OFFLINE_PAGES.map((p) => fetch(p).then((res) => (cacheable(res) ? c.put(p, res) : null)).catch(() => {}))),
-      ),
-    ]).then(() => self.skipWaiting()),
-  );
+  event.waitUntil(caches.open(ASSETS).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -32,24 +29,70 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-function clearPages() {
+async function clearSignedInPages() {
   generation++;
-  return caches.delete(PAGES);
+  const cache = await caches.open(PAGES);
+  const keys = await cache.keys();
+  await Promise.all(keys.filter((r) => !OFFLINE_PAGES.includes(new URL(r.url).pathname)).map((r) => cache.delete(r)));
 }
 
 // The login page asks for this, so signed-in pages don't outlive a logout.
 self.addEventListener("message", (event) => {
-  if (event.data === "clear-pages") event.waitUntil(clearPages());
+  if (event.data === "clear-pages") event.waitUntil(clearSignedInPages());
 });
 
-// Only plain successful pages are kept. A redirect (to /login) must never be
-// served from cache: Safari refuses redirected responses from a service worker.
+// Only plain successful pages are kept. A redirect must never be served from
+// cache: Safari refuses redirected responses from a service worker.
 function cacheable(res) {
   return res.ok && !res.redirected && res.type === "basic";
 }
 
-function endedSession(res) {
-  return res.redirected && new URL(res.url).pathname === "/login";
+async function store(request, res, gen) {
+  if (gen !== generation) return;
+  const headers = new Headers(res.headers);
+  headers.set(CACHED_AT, String(Date.now()));
+  const body = await res.blob();
+  if (gen !== generation) return;
+  await (await caches.open(PAGES)).put(request, new Response(body, { status: res.status, statusText: res.statusText, headers }));
+}
+
+// A signed-in page loaded fine, so the session is good: make sure the offline
+// pages are cached too (the first visit is usually /login, where they can't be).
+async function ensureOfflinePages() {
+  const cache = await caches.open(PAGES);
+  for (const path of OFFLINE_PAGES) {
+    if (await cache.match(path)) continue;
+    const res = await fetch(path).catch(() => null);
+    if (res && cacheable(res)) await store(new Request(path), res, generation);
+  }
+}
+
+// Navigations use redirect mode "manual", so the proxy's redirect to /login comes
+// back as an opaque redirect: the session has ended.
+async function fromNetwork(request, gen) {
+  const res = await fetch(request);
+  if (res.type === "opaqueredirect") await clearSignedInPages();
+  else if (cacheable(res)) {
+    await store(request, res.clone(), gen);
+    await ensureOfflinePages().catch(() => {});
+  }
+  return res;
+}
+
+async function markCached(res) {
+  const html = await res.text();
+  const headers = new Headers(res.headers);
+  headers.delete(CACHED_AT);
+  headers.delete("content-length");
+  return new Response(html.replace(/<head[^>]*>/, (m) => `${m}<meta name="sw-cached" content="">`), {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
+function delay(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 self.addEventListener("fetch", (event) => {
@@ -60,24 +103,18 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     const gen = generation;
-    const network = fetch(request).then((res) => {
-      if (endedSession(res)) {
-        clearPages();
-      } else if (cacheable(res) && gen === generation) {
-        const copy = res.clone();
-        caches.open(PAGES).then((c) => (gen === generation ? c.put(request, copy) : null));
-      }
-      return res;
-    });
     event.respondWith(
       caches.open(PAGES).then((c) => c.match(request)).then((cached) => {
-        if (cached) {
-          event.waitUntil(network.catch(() => {}));
-          return cached;
+        if (!cached) {
+          return fromNetwork(request, gen).catch(() =>
+            caches.open(PAGES).then((c) => c.match("/").then((r) => r || c.match("/log"))).then((r) => (r ? markCached(r) : Response.error())),
+          );
         }
-        return network.catch(() =>
-          caches.open(PAGES).then((c) => c.match("/").then((r) => r || c.match("/log"))).then((r) => r || Response.error()),
-        );
+        const age = Date.now() - Number(cached.headers.get(CACHED_AT) || 0);
+        if (age > REVALIDATE_AFTER_MS) {
+          event.waitUntil(delay(REVALIDATE_DELAY_MS).then(() => fromNetwork(request, gen)).catch(() => {}));
+        }
+        return markCached(cached);
       }),
     );
     return;

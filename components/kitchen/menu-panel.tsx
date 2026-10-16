@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { addSavedToGrocery, deleteSavedRecipe, toggleFavorite, importFavorite } from "@/app/kitchen/actions";
 import { cn } from "@/lib/utils";
 import type { SavedRecipe } from "@/lib/db/schema";
+import { saveOrWarn } from "@/lib/save-or-warn";
 
 function searchUrl(name: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(name + " recipe")}`;
@@ -33,7 +34,7 @@ function RecipeCard({ r }: { r: SavedRecipe }) {
             aria-pressed={favorite}
             onClick={() => startEdit(async () => {
               setFavorite(!favorite);
-              await toggleFavorite(r.id, !favorite);
+              await saveOrWarn(toggleFavorite(r.id, !favorite));
             })}
             className={cn("p-2", favorite ? "text-primary" : "text-muted-foreground hover:text-foreground")}
           >
@@ -44,7 +45,7 @@ function RecipeCard({ r }: { r: SavedRecipe }) {
             aria-label="Remove from Menu"
             onClick={() => startEdit(async () => {
               setRemoved(true);
-              await deleteSavedRecipe(r.id);
+              await saveOrWarn(deleteSavedRecipe(r.id));
             })}
             className="text-muted-foreground hover:text-destructive p-2"
           >

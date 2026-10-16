@@ -4,6 +4,7 @@ import { useOptimistic, useTransition } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { rateMeal } from "@/app/kitchen/actions";
+import { saveOrWarn } from "@/lib/save-or-warn";
 
 export type Sentiment = "like" | "dislike";
 
@@ -23,8 +24,8 @@ export function MealRating({
     const next = shown === s ? null : s;
     start(async () => {
       show(next);
-      await rateMeal(name, next);
-      if (next === "dislike") onDislike?.();
+      const saved = await saveOrWarn(rateMeal(name, next));
+      if (saved && next === "dislike") onDislike?.();
     });
   }
 
