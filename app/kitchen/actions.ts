@@ -87,7 +87,7 @@ export async function dismissMeal(name: string) {
   const [row] = await db
     .select({ id: mealPlans.id })
     .from(mealPlans)
-    .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+    .orderBy(desc(mealPlans.createdAt), desc(mealPlans.id))
     .limit(1);
   if (row) await db.update(mealPlans).set({ plan: { meals } }).where(eq(mealPlans.id, row.id));
   revalidatePath("/kitchen");
@@ -122,7 +122,7 @@ export async function replaceMealInPlan(name: string): Promise<{ ok: boolean }> 
   const [row] = await db
     .select({ id: mealPlans.id })
     .from(mealPlans)
-    .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+    .orderBy(desc(mealPlans.createdAt), desc(mealPlans.id))
     .limit(1);
   if (row) await db.update(mealPlans).set({ plan: { meals: remaining } }).where(eq(mealPlans.id, row.id));
   revalidatePath("/kitchen");
@@ -170,7 +170,7 @@ export async function addMealToPlan(name: string): Promise<{ ok: true } | { ok: 
     const [row] = await db
       .select({ id: mealPlans.id })
       .from(mealPlans)
-      .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+      .orderBy(desc(mealPlans.createdAt), desc(mealPlans.id))
       .limit(1);
     if (row) {
       await db.update(mealPlans).set({ plan: { meals } }).where(eq(mealPlans.id, row.id));

@@ -40,6 +40,10 @@ export function weekStartISO(iso: string = todayISO()): string {
   return new Date(d.getTime() - back * 86400000).toISOString().slice(0, 10);
 }
 
+export function addDaysISO(iso: string, n: number): string {
+  return new Date(new Date(iso + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+}
+
 export function localHour(d: Date = new Date()): number {
   return Number(hourFmt.format(d));
 }
