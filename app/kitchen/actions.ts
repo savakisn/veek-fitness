@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
-import { startOfWeek } from "date-fns";
+import { weekStartISO } from "@/lib/format";
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { pantryItems, mealPlans, groceryItems, mealFeedback, savedRecipes } from "@/lib/db/schema";
@@ -145,7 +145,7 @@ export async function generateMealPlan(note?: string): Promise<{ ok: true } | { 
     });
     const plan = await generateJSON<WeeklyMealPlan>(prompt, system);
     const db = await getDb();
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString().slice(0, 10);
+    const weekStart = weekStartISO();
     await db.insert(mealPlans).values({ weekStart, plan });
     revalidatePath("/kitchen");
     return { ok: true };
@@ -175,7 +175,7 @@ export async function addMealToPlan(name: string): Promise<{ ok: true } | { ok: 
     if (row) {
       await db.update(mealPlans).set({ plan: { meals } }).where(eq(mealPlans.id, row.id));
     } else {
-      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString().slice(0, 10);
+      const weekStart = weekStartISO();
       await db.insert(mealPlans).values({ weekStart, plan: { meals } });
     }
     revalidatePath("/kitchen");

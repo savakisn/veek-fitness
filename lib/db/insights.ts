@@ -4,6 +4,7 @@ import { getDb } from "./index";
 import { workouts, routines, aiInsights, metrics } from "./schema";
 import type { AiInsight, User } from "./schema";
 import { getStreak, getRecentWorkouts } from "./queries";
+import { daysAgoISO } from "../format";
 
 // Latest value per metric type for a user (steps, sleep_hours, resting_hr, ...).
 export async function getLatestMetrics(userId: number): Promise<Record<string, number>> {
@@ -31,7 +32,7 @@ export async function getWeeklyStats(user: User): Promise<FitnessStats> {
   const db = await getDb();
   const [streak, recent] = await Promise.all([getStreak(user), getRecentWorkouts(user.id, 8)]);
 
-  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const since = daysAgoISO(30);
   const rows = await db
     .select({ goalTag: routines.goalTag, type: workouts.type })
     .from(workouts)
@@ -63,7 +64,7 @@ export async function getMetricSeries(
   days = 7,
 ): Promise<{ date: string; value: number }[]> {
   const db = await getDb();
-  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const since = daysAgoISO(days);
   return db
     .select({ date: metrics.date, value: metrics.value })
     .from(metrics)

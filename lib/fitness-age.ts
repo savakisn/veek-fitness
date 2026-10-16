@@ -2,6 +2,7 @@ import "server-only";
 import { desc, eq, and } from "drizzle-orm";
 import type { DB } from "./db";
 import { metrics, workouts } from "./db/schema";
+import { todayISO } from "./format";
 
 // Nick's static profile (only he has Garmin). Birthdate keeps age current.
 const BIRTH_DATE = "1999-03-15"; // ~27 in mid-2026
@@ -101,7 +102,7 @@ export async function fitnessAgeBreakdown(db: DB, userId: number): Promise<Fitne
 export async function upsertFitnessAge(db: DB, userId: number): Promise<boolean> {
   const b = await fitnessAgeBreakdown(db, userId);
   if (!b) return false;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   await db
     .insert(metrics)
     .values({ userId, date: today, metricType: "fitness_age", value: b.fitnessAge, source: "derived" })
