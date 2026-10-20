@@ -9,6 +9,7 @@ import { workouts, users, household, aiInsights, metrics } from "@/lib/db/schema
 import { getCurrentUser } from "@/lib/auth";
 import { getRoutineCards, getRecentWorkouts } from "@/lib/db/queries";
 import { getWeeklyStats } from "@/lib/db/insights";
+import { recordCoachCall } from "@/lib/db/day-calls";
 import { generateJSON, AiUnavailableError } from "@/lib/ai";
 import { fitnessSummaryPrompt, workoutCoachPrompt, type CoachPick, type WeeklyRecap } from "@/lib/ai/prompts";
 import { todayISO } from "@/lib/format";
@@ -168,6 +169,10 @@ export async function suggestWorkout(input: {
     });
     const pick = await generateJSON<CoachPick>(prompt, system);
     const chosen = cards.find((c) => c.slug === pick.routineSlug) ?? cards[0];
+    // The log must never cost the person their suggestion.
+    await recordCoachCall(user, input.location, chosen.id, pick.reason ?? "", input.feeling).catch((e) =>
+      console.error("recordCoachCall failed", e),
+    );
     return { ok: true, slug: chosen.slug, name: chosen.name, reason: pick.reason ?? "" };
   } catch (e) {
     if (e instanceof AiUnavailableError) return { ok: false, error: "AI isn't set up yet. Add ANTHROPIC_API_KEY to enable it." };
