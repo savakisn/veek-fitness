@@ -4,7 +4,8 @@ import { Plus, ChevronRight } from "lucide-react";
 import { getLocation } from "@/lib/location";
 import { getCurrentUser } from "@/lib/auth";
 import type { User } from "@/lib/db/schema";
-import { getTrainingLoad, getSuggestedRoutine, getRecentWorkouts, type Location } from "@/lib/db/queries";
+import { getTrainingLoad, getRecentWorkouts, type Location } from "@/lib/db/queries";
+import { getTodaysCall } from "@/lib/db/day-calls";
 import { getLatestInsight, getLatestMetrics, getMetricSeries } from "@/lib/db/insights";
 import { PageHeader } from "@/components/page-header";
 import { DeviceMetrics } from "@/components/device-metrics";
@@ -109,7 +110,7 @@ async function Insight({ userId }: { userId: number }) {
 }
 
 async function Suggested({ location, user }: { location: Location; user: User }) {
-  const suggested = await getSuggestedRoutine(location, user);
+  const suggested = await getTodaysCall(location, user);
   return suggested ? (
     <RoutineCard card={suggested} />
   ) : (

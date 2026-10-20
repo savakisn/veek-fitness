@@ -57,6 +57,13 @@
       "when": 1781700000000,
       "tag": "0007_saved_recipe_fav",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781750000000,
+      "tag": "0008_day_calls",
+      "breakpoints": true
     }
   ]
 }

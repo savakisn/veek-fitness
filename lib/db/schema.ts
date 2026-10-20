@@ -215,6 +215,29 @@ export const aiInsights = pgTable(
   (t) => [uniqueIndex("ai_insights_user_kind_date_uniq").on(t.userId, t.kind, t.date)],
 );
 
+// What the app told each person to do that day, with the numbers it knew then.
+// Outcomes come from workouts, so this is the baseline later changes are judged by.
+export const dayCalls = pgTable(
+  "day_calls",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    date: date("date").notNull(),
+    kind: text("kind").notNull(), // suggested | coach
+    location: text("location").notNull(), // home | gym
+    routineId: integer("routine_id")
+      .notNull()
+      .references(() => routines.id),
+    reason: text("reason"),
+    note: text("note"), // what the person told the coach
+    inputs: jsonb("inputs").$type<Record<string, number>>(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("day_calls_user_date_kind_loc_uniq").on(t.userId, t.date, t.kind, t.location)],
+);
+
 export type User = typeof users.$inferSelect;
 export type Household = typeof household.$inferSelect;
 export type Exercise = typeof exercises.$inferSelect;
