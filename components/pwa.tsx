@@ -1,18 +1,33 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { flushQueue } from "@/lib/offline-queue";
 
-// Registers the service worker (offline app shell) and flushes any workouts that
-// were logged offline, on load and whenever the connection returns.
+const STALE_MS = 60 * 1000;
+
+// Registers the service worker and keeps what it serves honest. The worker shows
+// the last copy of a page instantly and tags it with <meta name="sw-cached">; when
+// that tag is present, refresh to pull fresh data. Also refresh when the app comes
+// back from a minute or more in the background.
+// Also flushes workouts logged offline, on load and when the connection returns.
 export function Pwa() {
   const router = useRouter();
+  const pathname = usePathname();
+
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
+    // Offline there's nothing fresher to get.
+    if (navigator.onLine && document.querySelector('meta[name="sw-cached"]')) router.refresh();
+
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else if (navigator.onLine && hiddenAt && Date.now() - hiddenAt > STALE_MS) router.refresh();
+    };
     const sync = async () => {
       const n = await flushQueue();
       if (n > 0) {
@@ -21,8 +36,18 @@ export function Pwa() {
       }
     };
     sync();
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("online", sync);
-    return () => window.removeEventListener("online", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", sync);
+    };
   }, [router]);
+
+  // Signed-out: drop cached signed-in pages.
+  useEffect(() => {
+    if (pathname === "/login") navigator.serviceWorker?.controller?.postMessage("clear-pages");
+  }, [pathname]);
+
   return null;
 }

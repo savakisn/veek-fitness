@@ -16,6 +16,7 @@ export async function login(formData: FormData) {
   if (!user) redirect("/login?error=1");
 
   const secret = process.env.AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") throw new Error("AUTH_SECRET is not set.");
   const value = secret ? await signToken(user.id, secret) : String(user.id);
   (await cookies()).set("vf_user", value, {
     httpOnly: true,

@@ -8,42 +8,50 @@ const THRESHOLD = 70; // px pulled before a release triggers a refresh
 
 // Pull down at the top of the page to refresh — iOS standalone PWAs have no
 // native pull-to-refresh, so we add our own. Fires the Garmin live pull, then
-// re-renders the server components.
+// re-renders the server components. Touch state lives in refs so the listeners
+// are attached once, not re-bound on every frame of a pull.
 export function PullToRefresh() {
   const router = useRouter();
   const [pull, setPull] = useState(0);
   const [busy, setBusy] = useState(false);
   const startY = useRef<number | null>(null);
+  const pullRef = useRef(0);
+  const busyRef = useRef(false);
 
   useEffect(() => {
+    const set = (v: number) => {
+      pullRef.current = v;
+      setPull(v);
+    };
     function onStart(e: TouchEvent) {
-      if (window.scrollY <= 0 && !busy) startY.current = e.touches[0].clientY;
-      else startY.current = null;
+      startY.current = window.scrollY <= 0 && !busyRef.current ? e.touches[0].clientY : null;
     }
     function onMove(e: TouchEvent) {
       if (startY.current == null) return;
       const dy = e.touches[0].clientY - startY.current;
       // Deadzone so a normal tap (tiny drift) never engages the pull.
-      if (dy > 14) setPull(Math.min((dy - 14) * 0.5, THRESHOLD + 20));
+      if (dy > 14) set(Math.min((dy - 14) * 0.5, THRESHOLD + 20));
     }
     function onEnd() {
       if (startY.current == null) return;
-      if (pull >= THRESHOLD) {
-        setBusy(true);
-        setPull(THRESHOLD);
-        fetch("/api/garmin/live", { method: "POST" })
-          .catch(() => {})
-          .finally(() => {
-            router.refresh();
-            setTimeout(() => {
-              setBusy(false);
-              setPull(0);
-            }, 400);
-          });
-      } else {
-        setPull(0);
-      }
       startY.current = null;
+      if (pullRef.current < THRESHOLD) {
+        set(0);
+        return;
+      }
+      busyRef.current = true;
+      setBusy(true);
+      set(THRESHOLD);
+      fetch("/api/garmin/live", { method: "POST" })
+        .catch(() => {})
+        .finally(() => {
+          router.refresh();
+          setTimeout(() => {
+            busyRef.current = false;
+            setBusy(false);
+            set(0);
+          }, 400);
+        });
     }
     window.addEventListener("touchstart", onStart, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: true });
@@ -53,7 +61,7 @@ export function PullToRefresh() {
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
     };
-  }, [pull, busy, router]);
+  }, [router]);
 
   if (pull <= 0) return null;
   return (

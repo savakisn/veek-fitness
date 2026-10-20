@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Sparkles, Clock, Beef, CalendarX, Plus, ChevronDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,6 @@ export function MealPlanPanel({
   plan: WeeklyMealPlan | null;
   feedback: Record<string, Sentiment>;
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [addPending, startAdd] = useTransition();
   const [note, setNote] = useState("");
@@ -38,7 +36,6 @@ export function MealPlanPanel({
         return;
       }
       toast.success("Fresh plan ready.");
-      router.refresh();
     });
   }
   function recipeOf(m: PlannedMeal) {
@@ -61,7 +58,6 @@ export function MealPlanPanel({
     start(async () => {
       await dismissMeal(name);
       toast("Removed from this week.");
-      router.refresh();
     });
   }
   function add() {
@@ -78,7 +74,6 @@ export function MealPlanPanel({
       }
       setAdding("");
       toast.success("Added to this week.");
-      router.refresh();
     });
   }
 

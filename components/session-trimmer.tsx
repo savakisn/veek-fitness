@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Scissors, RotateCcw } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from "recharts";
@@ -55,7 +54,6 @@ export function SessionTrimmer({
   hrSamples?: { t: number; hr: number }[];
   trim?: { startSec: number; endSec: number };
 }) {
-  const router = useRouter();
   const maxT = speedSamples[speedSamples.length - 1]?.t ?? 0;
   const [start, setStart] = useState(trim?.startSec ?? 0);
   const [end, setEnd] = useState(trim?.endSec ?? maxT);
@@ -72,7 +70,6 @@ export function SessionTrimmer({
     startT(async () => {
       await updateWorkoutTrim(id, start, Math.max(start + 60, end));
       toast.success("Session trimmed.");
-      router.refresh();
     });
   }
   function reset() {
@@ -81,7 +78,6 @@ export function SessionTrimmer({
     startT(async () => {
       await updateWorkoutTrim(id, 0, maxT);
       toast("Trim reset.");
-      router.refresh();
     });
   }
 

@@ -37,12 +37,14 @@ export async function getPantry(): Promise<PantryItem[]> {
   return db.select().from(pantryItems).orderBy(asc(pantryItems.useBy), desc(pantryItems.createdAt));
 }
 
+// The latest generated plan is the current one. Ordering by week_start let a plan
+// saved under a wrong (UTC) week hide a newer one.
 export async function getCurrentMealPlan(): Promise<WeeklyMealPlan | null> {
   const db = await getDb();
   const [row] = await db
     .select()
     .from(mealPlans)
-    .orderBy(desc(mealPlans.weekStart), desc(mealPlans.createdAt))
+    .orderBy(desc(mealPlans.createdAt), desc(mealPlans.id))
     .limit(1);
   return row ? (row.plan as WeeklyMealPlan) : null;
 }

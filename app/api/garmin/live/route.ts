@@ -13,6 +13,8 @@ export async function POST() {
   if (secret) {
     const userId = await verifyToken((await cookies()).get("vf_user")?.value, secret);
     if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  } else if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
     const res = await fetchLiveMetrics();

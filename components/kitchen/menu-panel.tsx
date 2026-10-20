@@ -1,22 +1,27 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ListPlus, Trash2, Clock, Beef, Star, ChevronDown, ExternalLink, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addSavedToGrocery, deleteSavedRecipe, toggleFavorite, importFavorite } from "@/app/kitchen/actions";
 import { cn } from "@/lib/utils";
 import type { SavedRecipe } from "@/lib/db/schema";
+import { saveOrWarn } from "@/lib/save-or-warn";
 
 function searchUrl(name: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(name + " recipe")}`;
 }
 
 function RecipeCard({ r }: { r: SavedRecipe }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
+  const [, startEdit] = useTransition();
   const [open, setOpen] = useState(false);
+  // Star and delete show instantly; revalidation re-sorts or drops the card for real.
+  const [favorite, setFavorite] = useOptimistic(r.favorite);
+  const [removed, setRemoved] = useOptimistic(false);
+
+  if (removed) return null;
 
   return (
     <div className="bg-card rounded-xl border p-4">
@@ -25,23 +30,24 @@ function RecipeCard({ r }: { r: SavedRecipe }) {
         <div className="flex shrink-0 items-center gap-0.5">
           <button
             type="button"
-            aria-label={r.favorite ? "Remove favorite" : "Mark favorite"}
-            onClick={() => start(async () => {
-              await toggleFavorite(r.id, !r.favorite);
-              router.refresh();
+            aria-label={favorite ? "Remove favorite" : "Mark favorite"}
+            aria-pressed={favorite}
+            onClick={() => startEdit(async () => {
+              setFavorite(!favorite);
+              await saveOrWarn(toggleFavorite(r.id, !favorite));
             })}
-            className={cn("p-1", r.favorite ? "text-primary" : "text-muted-foreground hover:text-foreground")}
+            className={cn("p-2", favorite ? "text-primary" : "text-muted-foreground hover:text-foreground")}
           >
-            <Star className={cn("size-4", r.favorite && "fill-current")} />
+            <Star className={cn("size-4", favorite && "fill-current")} />
           </button>
           <button
             type="button"
             aria-label="Remove from Menu"
-            onClick={() => start(async () => {
-              await deleteSavedRecipe(r.id);
-              router.refresh();
+            onClick={() => startEdit(async () => {
+              setRemoved(true);
+              await saveOrWarn(deleteSavedRecipe(r.id));
             })}
-            className="text-muted-foreground hover:text-destructive p-1"
+            className="text-muted-foreground hover:text-destructive p-2"
           >
             <Trash2 className="size-4" />
           </button>
@@ -110,7 +116,6 @@ function RecipeCard({ r }: { r: SavedRecipe }) {
           const res = await addSavedToGrocery(r.id);
           if (res.ok) toast.success(res.added > 0 ? `Added ${res.added} to your list.` : "Already on your list.");
           else toast.error(res.error);
-          router.refresh();
         })}
       >
         <ListPlus className="size-4" /> Add to list
@@ -120,7 +125,6 @@ function RecipeCard({ r }: { r: SavedRecipe }) {
 }
 
 export function MenuPanel({ recipes, pendingFavorites = [] }: { recipes: SavedRecipe[]; pendingFavorites?: string[] }) {
-  const router = useRouter();
   const [importing, startImport] = useTransition();
   const favorites = recipes.filter((r) => r.favorite);
   const rest = recipes.filter((r) => !r.favorite);
@@ -143,7 +147,6 @@ export function MenuPanel({ recipes, pendingFavorites = [] }: { recipes: SavedRe
                   const res = await importFavorite(name);
                   if (res.ok) {
                     toast.success(`Added ${name}.`);
-                    router.refresh();
                   } else toast.error(res.error);
                 })}
               >

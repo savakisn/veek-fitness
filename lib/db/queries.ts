@@ -6,6 +6,7 @@ import type { Exercise, Routine, RoutineExercise, Workout, User } from "./schema
 import { isOwned } from "../equipment";
 import { computeStreak, type StreakInfo } from "../streaks";
 import { computeTraining, type TrainingStatus } from "../load";
+import { daysAgoISO } from "../format";
 
 export type Location = "home" | "gym";
 
@@ -114,7 +115,7 @@ export async function getWorkoutById(
 
 export async function getTrainingLoad(userId: number): Promise<TrainingStatus> {
   const db = await getDb();
-  const since = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+  const since = daysAgoISO(29);
   const rows = await db
     .select({
       date: workouts.date,
@@ -150,7 +151,7 @@ export async function getSuggestedRoutine(location: Location, user: User): Promi
     .where(
       and(
         eq(workouts.userId, user.id),
-        gte(workouts.date, new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10)),
+        gte(workouts.date, daysAgoISO(14)),
       ),
     )
     .orderBy(desc(workouts.date))

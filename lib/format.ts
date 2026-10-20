@@ -13,9 +13,40 @@ export function goalLabel(tag: string): string {
   return GOAL_LABELS[tag] ?? tag;
 }
 
-// Local-time ISO date (YYYY-MM-DD), so "today" matches the user's day, not UTC.
+// Both users live in Connecticut. Servers run on UTC, so every "what day is it"
+// goes through this zone; otherwise after 8pm ET "today" is already tomorrow.
+export const APP_TZ = "America/New_York";
+
+const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: APP_TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+const hourFmt = new Intl.DateTimeFormat("en-US", { timeZone: APP_TZ, hour: "numeric", hourCycle: "h23" });
+
+// The calendar date (YYYY-MM-DD) of an instant, in the app's zone.
+export function isoDate(d: Date): string {
+  return dayFmt.format(d);
+}
+
 export function todayISO(d: Date = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return isoDate(d);
+}
+
+// Calendar-day math on date strings, so a 23- or 25-hour DST day can't skip or repeat a date.
+export function addDaysISO(iso: string, n: number): string {
+  return new Date(new Date(iso + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+}
+
+export function daysAgoISO(n: number): string {
+  return addDaysISO(todayISO(), -n);
+}
+
+// Monday of the week containing the given date (date-string math, zone-free).
+export function weekStartISO(iso: string = todayISO()): string {
+  const d = new Date(iso + "T00:00:00Z");
+  const back = (d.getUTCDay() + 6) % 7;
+  return new Date(d.getTime() - back * 86400000).toISOString().slice(0, 10);
+}
+
+export function localHour(d: Date = new Date()): number {
+  return Number(hourFmt.format(d));
 }
 
 export function prettyDate(iso: string): string {

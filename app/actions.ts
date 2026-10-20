@@ -14,6 +14,7 @@ import { fitnessSummaryPrompt, workoutCoachPrompt, type CoachPick, type WeeklyRe
 import { todayISO } from "@/lib/format";
 
 export async function setLocation(location: "home" | "gym") {
+  await getCurrentUser();
   (await cookies()).set("vf_location", location, {
     httpOnly: false,
     sameSite: "lax",
@@ -140,6 +141,7 @@ export async function updateWeeklyGoal(goal: number) {
 }
 
 export async function updateKitchenPrefs(input: { householdSize: number; dislikes: string[] }) {
+  await getCurrentUser();
   const db = await getDb();
   await db
     .update(household)
@@ -153,8 +155,8 @@ export async function suggestWorkout(input: {
   location: "home" | "gym";
   feeling: string;
 }): Promise<{ ok: true; slug: string; name: string; reason: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
   try {
-    const user = await getCurrentUser();
     const cards = (await getRoutineCards(input.location, user)).filter((c) => c.available);
     if (cards.length === 0) return { ok: false, error: "No routines available for that spot yet." };
     const recent = await getRecentWorkouts(user.id, 5);
@@ -176,8 +178,8 @@ export async function suggestWorkout(input: {
 export async function refreshFitnessInsight(): Promise<
   { ok: true; recap: WeeklyRecap } | { ok: false; error: string }
 > {
+  const user = await getCurrentUser();
   try {
-    const user = await getCurrentUser();
     const stats = await getWeeklyStats(user);
     const { system, prompt } = fitnessSummaryPrompt(stats);
     const recap = await generateJSON<WeeklyRecap>(prompt, system);
