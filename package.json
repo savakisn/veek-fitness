@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file=.env --import tsx lib/db/migrate-cli.ts",
     "db:seed": "node --env-file=.env --import tsx lib/db/seed-cli.ts",
-    "test": "node --import tsx --test \"lib/**/*.test.ts\""
+    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
+    "backtest": "node --env-file-if-exists=.env --import tsx scripts/backtest-readiness.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
