@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint && node scripts/check-action-auth.mjs",
+    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file=.env --import tsx lib/db/migrate-cli.ts",
     "db:seed": "node --env-file=.env --import tsx lib/db/seed-cli.ts",
