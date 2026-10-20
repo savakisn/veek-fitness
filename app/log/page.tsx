@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { LogForm } from "@/components/log-form";
+import { LogScreen } from "@/components/log-screen";
+import { isAiConfigured } from "@/lib/ai/core";
 
 export default function LogPage() {
   return (
@@ -11,7 +12,7 @@ export default function LogPage() {
         </Link>
       </div>
       <h1 className="pt-4 pb-6 text-2xl font-semibold tracking-tight">Log activity</h1>
-      <LogForm />
+      <LogScreen aiEnabled={isAiConfigured()} />
     </main>
   );
 }
