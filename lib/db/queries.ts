@@ -140,9 +140,14 @@ export async function getStreak(user: User): Promise<StreakInfo> {
 }
 
 // Suggest something available you haven't done lately, so it stays varied.
-export async function getSuggestedRoutine(location: Location, user: User): Promise<RoutineCard | null> {
+// allow narrows the pool first, e.g. to what today's readiness permits.
+export async function getSuggestedRoutine(
+  location: Location,
+  user: User,
+  allow?: (card: RoutineCard) => boolean,
+): Promise<RoutineCard | null> {
   const db = await getDb();
-  const cards = (await getRoutineCards(location, user)).filter((c) => c.available);
+  const cards = (await getRoutineCards(location, user)).filter((c) => c.available && (!allow || allow(c)));
   if (cards.length === 0) return null;
 
   const recent = await db
