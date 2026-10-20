@@ -10,7 +10,7 @@ export function RoutineCard({ card }: { card: RoutineCardType }) {
     <div className="flex items-center gap-3 p-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="truncate font-medium">{card.name}</h3>
+          <h3 className="truncate font-bold">{card.name}</h3>
           {card.goalTag === "sport_prep" && (
             <Badge variant="secondary" className="shrink-0">
               Sport
@@ -41,10 +41,10 @@ export function RoutineCard({ card }: { card: RoutineCardType }) {
   );
 
   if (!card.available) {
-    return <div className="bg-card/50 rounded-xl border opacity-70">{inner}</div>;
+    return <div className="bg-card/50 rounded-2xl opacity-70">{inner}</div>;
   }
   return (
-    <Link href={`/routines/${card.slug}`} className="bg-card hover:bg-accent/40 block rounded-xl border transition-colors">
+    <Link href={`/routines/${card.slug}`} className="bg-card active:bg-muted block rounded-2xl transition-colors">
       {inner}
     </Link>
   );
