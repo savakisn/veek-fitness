@@ -22,6 +22,9 @@ const META: Record<string, { label: string; unit: string; variant: "bar" | "line
   sleep_hours: { label: "Sleep", unit: "h", variant: "line", decimals: 1 },
   sleep_score: { label: "Sleep score", unit: "", variant: "line", decimals: 0 },
   fitness_age: { label: "Fitness age", unit: " yrs", variant: "line", decimals: 0 },
+  // Linked from the signals row on Today.
+  hrv_overnight: { label: "Overnight HRV", unit: " ms", variant: "line", decimals: 0 },
+  acute_load: { label: "Acute load", unit: "", variant: "line", decimals: 0 },
 };
 
 function prettyDate(iso: string): string {

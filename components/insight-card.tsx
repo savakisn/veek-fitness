@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { refreshFitnessInsight } from "@/app/actions";
 import type { WeeklyRecap } from "@/lib/ai/prompts";
@@ -19,6 +19,7 @@ function parse(text: string | null): WeeklyRecap | null {
   return null;
 }
 
+// The weekly read, kept below the fold: context for the day, not the answer.
 export function InsightCard({ initialText }: { initialText: string | null }) {
   const [recap, setRecap] = useState<WeeklyRecap | null>(() => parse(initialText));
   const [pending, start] = useTransition();
@@ -35,40 +36,37 @@ export function InsightCard({ initialText }: { initialText: string | null }) {
   }
 
   return (
-    <div className="bg-card rounded-2xl border p-4">
+    <section aria-labelledby="recap-title">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Sparkles className="text-primary size-4" /> Your week
-        </div>
+        <h2 id="recap-title" className="text-eyebrow">
+          Coach&apos;s read on your week
+        </h2>
         <button
           onClick={refresh}
           disabled={pending}
           aria-label="Refresh weekly recap"
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground active:text-foreground -mr-2 flex size-11 items-center justify-center"
         >
           <RefreshCw className={cn("size-4", pending && "animate-spin")} />
         </button>
       </div>
 
       {pending ? (
-        <p className="text-muted-foreground mt-2 text-sm">Reading your week…</p>
+        <p className="text-muted-foreground text-sm">Reading your week…</p>
       ) : recap ? (
-        <div className="mt-2">
-          <p className="text-sm font-semibold leading-snug">{recap.tldr}</p>
+        <div>
+          <p className="text-sm leading-snug font-bold">{recap.tldr}</p>
           {recap.details.length > 0 && (
-            <ul className="text-muted-foreground mt-2 space-y-1 text-sm">
+            <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-4 text-sm marker:text-(--muted-foreground)">
               {recap.details.map((d, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-primary">·</span>
-                  <span>{d}</span>
-                </li>
+                <li key={i}>{d}</li>
               ))}
             </ul>
           )}
         </div>
       ) : (
-        <p className="text-muted-foreground mt-2 text-sm">Tap refresh for a read on how your week is going.</p>
+        <p className="text-muted-foreground text-sm">Tap refresh for a read on how your week is going.</p>
       )}
-    </div>
+    </section>
   );
 }
