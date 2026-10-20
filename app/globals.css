@@ -39,6 +39,12 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-push: var(--push);
+  --color-steady: var(--steady);
+  --color-easy: var(--easy);
+  --color-rest: var(--rest);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,73 +55,100 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Light mode is kept for completeness; the app ships forced dark. */
+  --background: oklch(0.985 0.004 250);
+  --foreground: oklch(0.2 0.024 258);
+  --card: oklch(0.96 0.006 250);
+  --card-foreground: oklch(0.2 0.024 258);
+  --popover: oklch(0.985 0.004 250);
+  --popover-foreground: oklch(0.2 0.024 258);
+  --primary: oklch(0.52 0.1 175);
+  --primary-foreground: oklch(0.985 0.004 250);
+  --secondary: oklch(0.94 0.008 250);
+  --secondary-foreground: oklch(0.2 0.024 258);
+  --muted: oklch(0.94 0.008 250);
+  --muted-foreground: oklch(0.5 0.02 255);
+  --accent: oklch(0.94 0.008 250);
+  --accent-foreground: oklch(0.2 0.024 258);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: oklch(0.3 0.03 258 / 10%);
+  --input: oklch(0.3 0.03 258 / 16%);
+  --ring: oklch(0.52 0.1 175);
+  --push: oklch(0.6 0.19 40);
+  --steady: oklch(0.55 0.11 175);
+  --easy: oklch(0.55 0.1 235);
+  --rest: oklch(0.52 0.09 292);
+  --good: oklch(0.55 0.14 145);
+  --warn: oklch(0.6 0.13 70);
+  --chart-1: oklch(0.55 0.11 175);
+  --chart-2: oklch(0.55 0.1 235);
+  --chart-3: oklch(0.6 0.13 70);
+  --chart-4: oklch(0.52 0.09 292);
+  --chart-5: oklch(0.6 0.19 40);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.96 0.006 250);
+  --sidebar-foreground: oklch(0.2 0.024 258);
+  --sidebar-primary: oklch(0.52 0.1 175);
+  --sidebar-primary-foreground: oklch(0.985 0.004 250);
+  --sidebar-accent: oklch(0.94 0.008 250);
+  --sidebar-accent-foreground: oklch(0.2 0.024 258);
+  --sidebar-border: oklch(0.3 0.03 258 / 10%);
+  --sidebar-ring: oklch(0.52 0.1 175);
 }
 
+/* Cadence, after dark. Neutrals are a night-navy ramp (hue 258) rather than grey,
+   text is a slightly warm paper white, and colour is reserved for meaning: the
+   four verdicts, plus good/warn for "against your norm". Steady doubles as the
+   brand primary, since a steady day is the normal rhythm. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.76 0.15 163);
-  --primary-foreground: oklch(0.21 0.03 163);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.76 0.15 163);
-  --chart-1: oklch(0.76 0.15 163);
-  --chart-2: oklch(0.7 0.14 233);
-  --chart-3: oklch(0.77 0.16 70);
-  --chart-4: oklch(0.7 0.16 300);
-  --chart-5: oklch(0.7 0.17 15);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.19 0.024 258); /* #0d141f */
+  --foreground: oklch(0.955 0.008 90); /* #f2f0ea */
+  --card: oklch(0.235 0.028 258); /* #161e2b */
+  --card-foreground: oklch(0.955 0.008 90);
+  --popover: oklch(0.235 0.028 258);
+  --popover-foreground: oklch(0.955 0.008 90);
+  --primary: oklch(0.8 0.12 172);
+  --primary-foreground: oklch(0.22 0.04 190);
+  --secondary: oklch(0.28 0.028 258);
+  --secondary-foreground: oklch(0.955 0.008 90);
+  --muted: oklch(0.28 0.028 258); /* #202937 */
+  --muted-foreground: oklch(0.72 0.025 255); /* #9aa6b4 */
+  --accent: oklch(0.29 0.03 258);
+  --accent-foreground: oklch(0.955 0.008 90);
+  --destructive: oklch(0.7 0.18 22);
+  --border: oklch(0.85 0.04 255 / 9%);
+  --input: oklch(0.85 0.04 255 / 14%);
+  --ring: oklch(0.8 0.12 172);
+
+  /* Verdicts: push is effort-orange, steady sea-teal, easy sky, rest moonlight. */
+  --push: oklch(0.73 0.18 40); /* #ff7946 */
+  --steady: oklch(0.8 0.12 172); /* #5ed7b5 */
+  --easy: oklch(0.8 0.09 232); /* #80c8ee */
+  --rest: oklch(0.77 0.075 292); /* #b5ace1 */
+  /* Against-your-norm signals. Warn is amber, not red: a low HRV is a caution, not an error. */
+  --good: oklch(0.82 0.15 140); /* #8ddc7c */
+  --warn: oklch(0.82 0.13 78); /* #f2b95a */
+
+  --chart-1: oklch(0.8 0.12 172);
+  --chart-2: oklch(0.8 0.09 232);
+  --chart-3: oklch(0.82 0.13 78);
+  --chart-4: oklch(0.77 0.075 292);
+  --chart-5: oklch(0.73 0.18 40);
+  --sidebar: oklch(0.235 0.028 258);
+  --sidebar-foreground: oklch(0.955 0.008 90);
+  --sidebar-primary: oklch(0.8 0.12 172);
+  --sidebar-primary-foreground: oklch(0.22 0.04 190);
+  --sidebar-accent: oklch(0.28 0.028 258);
+  --sidebar-accent-foreground: oklch(0.955 0.008 90);
+  --sidebar-border: oklch(0.85 0.04 255 / 9%);
+  --sidebar-ring: oklch(0.8 0.12 172);
 }
+
+/* One hook for verdict colour: set data-verdict and read var(--v). */
+[data-verdict="push"] { --v: var(--push); }
+[data-verdict="steady"] { --v: var(--steady); }
+[data-verdict="easy"] { --v: var(--easy); }
+[data-verdict="rest"] { --v: var(--rest); }
 
 @layer base {
   * {
@@ -126,5 +159,39 @@
   }
   html {
     @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Data reads in columns: every number lines up digit for digit. */
+  .tabular-nums,
+  time,
+  [data-num] {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Type scale (Lato throughout; 900 is reserved for the verdict and big numbers).
+   12 / 13 / 15 / 18 / 22 / 28 / 92. Body copy sits at 15px for phone reading. */
+@utility text-eyebrow {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+@utility text-display {
+  font-size: 5.75rem;
+  line-height: 0.82;
+  font-weight: 900;
+  letter-spacing: -0.045em;
+}
+@utility text-title {
+  font-size: 1.75rem;
+  line-height: 2rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+@layer base {
+  body {
+    font-size: 0.9375rem;
   }
 }
