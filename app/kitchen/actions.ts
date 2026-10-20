@@ -17,6 +17,8 @@ import {
 import { generateJSON } from "@/lib/ai";
 import { AiUnavailableError } from "@/lib/ai";
 import { mealPlanPrompt, fridgePrompt, replacementMealPrompt, recipeForPrompt } from "@/lib/ai/prompts";
+import { z } from "zod";
+import * as v from "@/lib/validate";
 import type { WeeklyMealPlan, FridgeResult, RecipeSuggestion, PlannedMeal } from "@/lib/ai/prompts";
 
 function aiError(e: unknown): string {
@@ -39,19 +41,31 @@ export async function addPantryItem(input: {
   useBy?: string | null;
 }) {
   await getCurrentUser();
+  const p = v.check(
+    z.object({
+      name: v.name(120),
+      category: v.text(60).nullish(),
+      location: v.text(30).nullish(),
+      quantity: v.text(60).nullish(),
+      useBy: v.isoDate.nullish().or(z.literal("")),
+    }),
+    input,
+  );
+  if (!p) return;
   const db = await getDb();
   await db.insert(pantryItems).values({
-    name: input.name.trim(),
-    category: input.category ?? null,
-    location: input.location ?? "fridge",
-    quantity: input.quantity ?? null,
-    useBy: input.useBy || null,
+    name: p.name,
+    category: p.category || null,
+    location: p.location || "fridge",
+    quantity: p.quantity || null,
+    useBy: p.useBy || null,
   });
   revalidatePath("/kitchen");
 }
 
 export async function deletePantryItem(id: number) {
   await getCurrentUser();
+  if (!v.check(v.id, id)) return;
   const db = await getDb();
   await db.delete(pantryItems).where(eq(pantryItems.id, id));
   revalidatePath("/kitchen");
@@ -61,8 +75,8 @@ export async function deletePantryItem(id: number) {
 export async function rateMeal(name: string, sentiment: "like" | "dislike" | null) {
   await getCurrentUser();
   const db = await getDb();
-  const n = name.trim();
-  if (!n) return;
+  const n = v.check(v.name(), name);
+  if (!n || !v.check(z.enum(["like", "dislike"]).nullable(), sentiment) && sentiment !== null) return;
   if (sentiment === null) {
     await db.delete(mealFeedback).where(eq(mealFeedback.name, n));
   } else {
@@ -78,6 +92,9 @@ export async function rateMeal(name: string, sentiment: "like" | "dislike" | nul
 // for a permanent no, thumbs-down steers the AI to avoid it).
 export async function dismissMeal(name: string) {
   await getCurrentUser();
+  const nm = v.check(v.name(), name);
+  if (!nm) return;
+  name = nm;
   const db = await getDb();
   const plan = await getCurrentMealPlan();
   if (!plan) return;
@@ -97,6 +114,9 @@ export async function dismissMeal(name: string) {
 // shopping list. Used by "not this week" and disliking a planned meal.
 export async function replaceMealInPlan(name: string): Promise<{ ok: boolean }> {
   await getCurrentUser();
+  const nm = v.check(v.name(), name);
+  if (!nm) return { ok: false };
+  name = nm;
   const db = await getDb();
   const plan = await getCurrentMealPlan();
   if (!plan) return { ok: false };
@@ -131,6 +151,8 @@ export async function replaceMealInPlan(name: string): Promise<{ ok: boolean }> 
 
 export async function generateMealPlan(note?: string): Promise<{ ok: true } | { ok: false; error: string }> {
   await getCurrentUser();
+  const noteOk = note === undefined || v.check(v.text(500), note) !== null;
+  if (!noteOk) return { ok: false, error: "That note is too long." };
   try {
     const [h, pantry, feedback] = await Promise.all([getHousehold(), getPantry(), getMealFeedback()]);
     const taste = splitFeedback(feedback);
@@ -158,8 +180,9 @@ export async function generateMealPlan(note?: string): Promise<{ ok: true } | { 
 // flow into the grocery list. Appends to the current plan (or starts one).
 export async function addMealToPlan(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
   await getCurrentUser();
-  const n = name.trim();
+  const n = typeof name === "string" ? name.trim() : "";
   if (!n) return { ok: false, error: "Type a meal first." };
+  if (n.length > 120) return { ok: false, error: "That name is too long." };
   try {
     const [h, plan] = await Promise.all([getHousehold(), getCurrentMealPlan()]);
     const { system, prompt } = recipeForPrompt({ name: n, household: h.householdSize, dislikes: h.dislikes });
@@ -249,8 +272,20 @@ export async function saveRecipe(input: {
 }) {
   await getCurrentUser();
   const db = await getDb();
-  const name = input.name.trim();
-  if (!name) return;
+  const parsed = v.check(
+    z.object({
+      name: v.name(120),
+      blurb: v.text(500).nullish(),
+      proteinGrams: z.number().min(0).max(500).nullish(),
+      prepMinutes: z.number().min(0).max(1440).nullish(),
+      items: z.array(z.object({ item: v.name(120), quantity: v.text(60).optional() })).max(100),
+      steps: z.array(v.text(1000)).max(50).nullish(),
+    }),
+    input,
+  );
+  if (!parsed) return;
+  input = parsed;
+  const name = parsed.name;
   // Note: favorite is intentionally not in the update set, so re-saving a
   // bookmarked recipe doesn't clear its favorite tag.
   const row = {
@@ -269,6 +304,7 @@ export async function saveRecipe(input: {
 
 export async function toggleFavorite(id: number, favorite: boolean) {
   await getCurrentUser();
+  if (!v.check(v.id, id) || typeof favorite !== "boolean") return;
   const db = await getDb();
   await db.update(savedRecipes).set({ favorite }).where(eq(savedRecipes.id, id));
   revalidatePath("/kitchen");
@@ -276,6 +312,7 @@ export async function toggleFavorite(id: number, favorite: boolean) {
 
 export async function deleteSavedRecipe(id: number) {
   await getCurrentUser();
+  if (!v.check(v.id, id)) return;
   const db = await getDb();
   const [r] = await db.select({ name: savedRecipes.name }).from(savedRecipes).where(eq(savedRecipes.id, id));
   await db.delete(savedRecipes).where(eq(savedRecipes.id, id));
@@ -288,8 +325,8 @@ export async function deleteSavedRecipe(id: number) {
 // the recipe + steps). Used to migrate the old like-based favorites.
 export async function importFavorite(name: string): Promise<{ ok: true } | { ok: false; error: string }> {
   await getCurrentUser();
-  const n = name.trim();
-  if (!n) return { ok: false, error: "No meal." };
+  const n = typeof name === "string" ? name.trim() : "";
+  if (!n || n.length > 120) return { ok: false, error: "No meal." };
   try {
     const h = await getHousehold();
     const { system, prompt } = recipeForPrompt({ name: n, household: h.householdSize, dislikes: h.dislikes });
@@ -318,6 +355,7 @@ export async function addSavedToGrocery(
   id: number,
 ): Promise<{ ok: true; added: number } | { ok: false; error: string }> {
   await getCurrentUser();
+  if (!v.check(v.id, id)) return { ok: false, error: "Recipe not found." };
   const db = await getDb();
   const [recipe] = await db.select().from(savedRecipes).where(eq(savedRecipes.id, id));
   if (!recipe) return { ok: false, error: "Recipe not found." };
@@ -342,6 +380,7 @@ export async function addSavedToGrocery(
 
 export async function toggleGrocery(id: number, checked: boolean) {
   await getCurrentUser();
+  if (!v.check(v.id, id) || typeof checked !== "boolean") return;
   const db = await getDb();
   await db.update(groceryItems).set({ checked }).where(eq(groceryItems.id, id));
   revalidatePath("/kitchen");
@@ -349,8 +388,10 @@ export async function toggleGrocery(id: number, checked: boolean) {
 
 export async function addGroceryItem(name: string) {
   await getCurrentUser();
+  const n = v.check(v.name(), name);
+  if (!n) return;
   const db = await getDb();
-  await db.insert(groceryItems).values({ name: name.trim() });
+  await db.insert(groceryItems).values({ name: n });
   revalidatePath("/kitchen");
 }
 
