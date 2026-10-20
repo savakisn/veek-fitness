@@ -186,6 +186,12 @@ function ewma(daily: number[], tau: number): number {
   return corr > 0 ? v / corr : 0;
 }
 
+// Daily loads oldest first (today last) to per-day acute and chronic. The chronic
+// stops where the acute week starts, so the two never share days.
+export function ewmaLoads(daily: number[]): { acute: number; chronic: number } {
+  return { acute: ewma(daily, READINESS.acuteTau), chronic: ewma(daily.slice(0, Math.max(0, daily.length - 7)), READINESS.chronicTau) };
+}
+
 // Acute vs chronic, uncoupled: the chronic EWMA stops where the acute week starts,
 // so a hard week is compared against what came before it, not against itself.
 export function loadState(input: ReadinessInput): LoadState | null {
@@ -215,8 +221,7 @@ export function loadState(input: ReadinessInput): LoadState | null {
   const daily: number[] = [];
   for (let i = READINESS.loadDays - 1; i >= 0; i--) daily.push(byDay.get(addDays(today, -i)) ?? 0);
 
-  const acute = ewma(daily, READINESS.acuteTau);
-  const chronic = ewma(daily.slice(0, daily.length - 7), READINESS.chronicTau);
+  const { acute, chronic } = ewmaLoads(daily);
   if (chronic <= 0) return null;
   return { acute, chronic, ratio: Math.min(3, acute / chronic), source: "sessions" };
 }

@@ -5,7 +5,7 @@ import { exercises, routines, routineExercises, workouts, metrics } from "./sche
 import type { Exercise, Routine, RoutineExercise, Workout, User } from "./schema";
 import { isOwned } from "../equipment";
 import { computeStreak, type StreakInfo } from "../streaks";
-import { computeTraining, type TrainingStatus } from "../load";
+import { computeTraining, TRAINING_DAYS, type TrainingStatus } from "../load";
 import { daysAgoISO } from "../format";
 
 export type Location = "home" | "gym";
@@ -115,7 +115,7 @@ export async function getWorkoutById(
 
 export async function getTrainingLoad(userId: number): Promise<TrainingStatus> {
   const db = await getDb();
-  const since = daysAgoISO(29);
+  const since = daysAgoISO(TRAINING_DAYS);
   const rows = await db
     .select({
       date: workouts.date,
