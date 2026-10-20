@@ -24,7 +24,11 @@ export default async function LoginPage({
             placeholder="Passcode"
             aria-label="Passcode"
           />
-          {error && <p className="text-destructive text-sm">Wrong passcode, try again.</p>}
+          {error && (
+            <p className="text-destructive text-sm">
+              {error === "locked" ? "Too many tries. Wait a few minutes." : "Wrong passcode, try again."}
+            </p>
+          )}
           <Button type="submit" className="w-full">
             Enter
           </Button>

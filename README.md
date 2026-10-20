@@ -44,7 +44,13 @@ seeds the library and two demo accounts. With no `AUTH_SECRET` the login gate is
 
 See `.env.example`. For production: `DATABASE_URL` (Supabase pooled URI),
 `AUTH_SECRET` (signs login cookies), `ANTHROPIC_API_KEY` (AI), and
-`GARMIN_EMAIL` / `GARMIN_PASSWORD` / `CRON_SECRET` (Garmin sync).
+`GARMIN_EMAIL` / `GARMIN_PASSWORD` / `CRON_SECRET` (Garmin sync), and optionally
+`PROFILE_BIRTH_DATE` (YYYY-MM-DD) / `PROFILE_HEIGHT_IN` (inches) for the Garmin
+user's fitness age (hidden without a birth date; BMI nudge skipped without a height).
+
+Sessions last 90 days and refresh as you use the app. There is no per-session
+revocation: rotating `AUTH_SECRET` signs everyone out, which is the lever if a
+cookie or passcode leaks. See `SECURITY.md`.
 
 ## Notes
 

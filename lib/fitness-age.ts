@@ -4,12 +4,21 @@ import type { DB } from "./db";
 import { metrics, workouts } from "./db/schema";
 import { todayISO } from "./format";
 
-// Nick's static profile (only he has Garmin). Birthdate keeps age current.
-const BIRTH_DATE = "1999-03-15"; // ~27 in mid-2026
-const HEIGHT_IN = 70.5;
+// Static profile for the Garmin user, read from env so personal data stays out of the
+// repo: PROFILE_BIRTH_DATE (YYYY-MM-DD) and PROFILE_HEIGHT_IN (inches). Unset or
+// invalid: fitness age is hidden (no birth date) or skips the BMI nudge (no height).
+function birthDate(): string | null {
+  const v = process.env.PROFILE_BIRTH_DATE?.trim();
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v).getTime()) ? v : null;
+}
 
-function ageNow(): number {
-  const ms = Date.now() - new Date(BIRTH_DATE).getTime();
+function heightIn(): number | null {
+  const h = Number.parseFloat(process.env.PROFILE_HEIGHT_IN ?? "");
+  return h >= 40 && h <= 96 ? h : null;
+}
+
+function ageNow(birth: string): number {
+  const ms = Date.now() - new Date(birth).getTime();
   return ms / (365.25 * 86400000);
 }
 
@@ -41,7 +50,9 @@ export type FitnessAgeBreakdown = {
 // method (Uth-Sorensen 2004: VO2max ~= 15 * HRmax/HRrest). VO2max maps to male
 // population norms (median VO2max ~= 56 - 0.4*age), then BMI nudges it.
 export async function fitnessAgeBreakdown(db: DB, userId: number): Promise<FitnessAgeBreakdown | null> {
-  const age = ageNow();
+  const birth = birthDate();
+  if (!birth) return null;
+  const age = ageNow(birth);
   const garminVo2 = await latest(db, userId, "vo2max");
 
   let vo2max: number;
@@ -73,8 +84,9 @@ export async function fitnessAgeBreakdown(db: DB, userId: number): Promise<Fitne
   let bmi: number | null = null;
   let bmiAdjust = 0;
   const weight = await latest(db, userId, "weight"); // lbs
-  if (weight && weight > 0) {
-    bmi = (703 * weight) / (HEIGHT_IN * HEIGHT_IN);
+  const height = heightIn();
+  if (weight && weight > 0 && height) {
+    bmi = (703 * weight) / (height * height);
     if (bmi > 25) bmiAdjust = (bmi - 25) * 0.6;
     else if (bmi < 18.5) bmiAdjust = (18.5 - bmi) * 0.6;
   }

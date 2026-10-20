@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth-token";
@@ -8,9 +9,15 @@ export const maxDuration = 300;
 
 // The daily Vercel cron hits GET with the CRON_SECRET bearer. The app's "Sync
 // now" button hits POST as a logged-in user. Either path triggers a full sync.
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
 async function authorized(req: Request): Promise<boolean> {
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") === `Bearer ${secret}`) return true;
+  if (secret && safeEqual(req.headers.get("authorization") ?? "", `Bearer ${secret}`)) return true;
   const authSecret = process.env.AUTH_SECRET;
   if (authSecret) {
     const userId = await verifyToken((await cookies()).get("vf_user")?.value, authSecret);
