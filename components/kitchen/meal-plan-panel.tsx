@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Sparkles, Clock, Beef, CalendarX, Plus, ChevronDown, ExternalLink } from "lucide-react";
+import { CalendarDays, Clock, Beef, CalendarX, Plus, ChevronDown, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateMealPlan, dismissMeal, addMealToPlan, saveRecipe } from "@/app/kitchen/actions";
 import { MealRating, type Sentiment } from "./meal-rating";
@@ -90,7 +90,7 @@ export function MealPlanPanel({
         className="border-input bg-background w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none"
       />
       <Button onClick={run} disabled={pending} className="h-11 w-full">
-        <Sparkles className="size-4" /> {pending ? "Cooking up a plan…" : plan ? "Regenerate plan" : "Generate this week's plan"}
+        <CalendarDays className="size-4" /> {pending ? "Cooking up a plan…" : plan ? "Regenerate plan" : "Generate this week's plan"}
       </Button>
 
       {plan && plan.meals?.length ? (

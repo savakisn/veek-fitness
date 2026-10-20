@@ -32,21 +32,30 @@ export function BottomNav() {
   const activeHref = pending?.href ?? pathname;
 
   return (
-    <nav className="bg-background/90 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <div className="mx-auto flex max-w-md items-stretch justify-around">
+    <nav className="bg-background/85 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
+      <div className="mx-auto flex max-w-md items-stretch justify-around px-1">
         {ITEMS.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? activeHref === "/" : activeHref.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               onClick={() => setPending({ href, from: pathname })}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs transition-colors active:scale-95",
-                active ? "text-primary" : "text-muted-foreground",
+                "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 pt-1.5 pb-1 text-[11px] transition-colors",
+                active ? "text-foreground font-bold" : "text-muted-foreground",
               )}
             >
-              <Icon className="size-5 transition-transform" strokeWidth={active ? 2.4 : 1.8} />
+              {/* The active tab gets a pill behind its icon, not just a colour change. */}
+              <span
+                className={cn(
+                  "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
+                  active && "bg-primary/15 text-primary",
+                )}
+              >
+                <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
+              </span>
               {label}
             </Link>
           );

@@ -1,5 +1,5 @@
-import { PageSkeleton } from "@/components/page-skeleton";
+import { TodaySkeleton } from "@/components/today/skeletons";
 
 export default function Loading() {
-  return <PageSkeleton title="Today" rows={4} />;
+  return <TodaySkeleton />;
 }
