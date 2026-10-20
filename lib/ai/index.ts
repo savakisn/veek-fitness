@@ -1,53 +1,57 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
+import { sql } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { aiInsights } from "@/lib/db/schema";
+import { getCurrentUser } from "@/lib/auth";
+import { todayISO } from "@/lib/format";
+import { getAiClient, parseJsonLoose, reserveCall, type AiClient, type CallCounter } from "./core";
 
-// One pluggable seam over Claude. Single user, low volume, so Haiku is plenty and
-// cheap; bump MODEL to a Sonnet/Opus id for richer output at trivial extra cost.
-const MODEL = "claude-haiku-4-5";
+export {
+  AiUnavailableError,
+  AiLimitError,
+  MODEL,
+  setAiClient,
+  isAiConfigured,
+  type AiClient,
+  type CompleteRequest,
+} from "./core";
 
-export class AiUnavailableError extends Error {
-  constructor() {
-    super("AI is unavailable: ANTHROPIC_API_KEY is not set.");
-    this.name = "AiUnavailableError";
-  }
-}
+// One pluggable seam over Claude. Every call is counted per user per day in
+// ai_insights (kind "ai_calls") and refused past the daily cap.
+const counter: CallCounter = {
+  async increment(userId, date) {
+    const db = await getDb();
+    const [row] = await db
+      .insert(aiInsights)
+      .values({ userId, kind: "ai_calls", date, text: "1" })
+      .onConflictDoUpdate({
+        target: [aiInsights.userId, aiInsights.kind, aiInsights.date],
+        set: { text: sql`(${aiInsights.text}::int + 1)::text` },
+      })
+      .returning({ text: aiInsights.text });
+    return Number(row.text);
+  },
+};
 
-function client(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new AiUnavailableError();
-  return new Anthropic({ apiKey });
-}
-
-function textOf(res: Anthropic.Message): string {
-  const block = res.content.find((b) => b.type === "text");
-  return block && block.type === "text" ? block.text : "";
+export async function aiClientForUser(): Promise<AiClient> {
+  const client = getAiClient(); // throws AiUnavailableError first, before counting
+  const user = await getCurrentUser();
+  await reserveCall(counter, user.id, todayISO());
+  return client;
 }
 
 export async function generateText(prompt: string, system?: string): Promise<string> {
-  const res = await client().messages.create({
-    model: MODEL,
-    max_tokens: 2048,
-    system,
-    messages: [{ role: "user", content: prompt }],
-  });
-  return textOf(res).trim();
+  const client = await aiClientForUser();
+  return (await client.complete({ system, prompt, maxTokens: 2048 })).trim();
 }
 
-// Haiku returns clean JSON when asked for it; tolerate stray fences or preamble.
-export async function generateJSON<T>(prompt: string, system?: string): Promise<T> {
-  const res = await client().messages.create({
-    model: MODEL,
-    max_tokens: 4096,
-    system,
-    messages: [{ role: "user", content: prompt }],
-  });
-  const cleaned = textOf(res).replace(/```json/gi, "").replace(/```/g, "").trim();
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch {
-    const start = cleaned.search(/[[{]/);
-    const end = Math.max(cleaned.lastIndexOf("}"), cleaned.lastIndexOf("]"));
-    if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1)) as T;
-    throw new Error("AI returned unparseable JSON.");
-  }
+// With a JSON Schema the reply is schema-constrained by the API; without one it is
+// parsed leniently, as before. Callers should still validate what comes back.
+export async function generateJSON<T>(
+  prompt: string,
+  system?: string,
+  schema?: Record<string, unknown>,
+): Promise<T> {
+  const client = await aiClientForUser();
+  return parseJsonLoose<T>(await client.complete({ system, prompt, maxTokens: 4096, schema }));
 }
