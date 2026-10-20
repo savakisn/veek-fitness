@@ -5,7 +5,7 @@ import { exercises, routines, routineExercises, workouts, metrics } from "./sche
 import type { Exercise, Routine, RoutineExercise, Workout, User } from "./schema";
 import { isOwned } from "../equipment";
 import { computeStreak, type StreakInfo } from "../streaks";
-import { computeTraining, type TrainingStatus } from "../load";
+import { computeTraining, TRAINING_DAYS, type TrainingStatus } from "../load";
 import { daysAgoISO } from "../format";
 
 export type Location = "home" | "gym";
@@ -115,7 +115,7 @@ export async function getWorkoutById(
 
 export async function getTrainingLoad(userId: number): Promise<TrainingStatus> {
   const db = await getDb();
-  const since = daysAgoISO(29);
+  const since = daysAgoISO(TRAINING_DAYS);
   const rows = await db
     .select({
       date: workouts.date,
@@ -140,9 +140,14 @@ export async function getStreak(user: User): Promise<StreakInfo> {
 }
 
 // Suggest something available you haven't done lately, so it stays varied.
-export async function getSuggestedRoutine(location: Location, user: User): Promise<RoutineCard | null> {
+// allow narrows the pool first, e.g. to what today's readiness permits.
+export async function getSuggestedRoutine(
+  location: Location,
+  user: User,
+  allow?: (card: RoutineCard) => boolean,
+): Promise<RoutineCard | null> {
   const db = await getDb();
-  const cards = (await getRoutineCards(location, user)).filter((c) => c.available);
+  const cards = (await getRoutineCards(location, user)).filter((c) => c.available && (!allow || allow(c)));
   if (cards.length === 0) return null;
 
   const recent = await db
