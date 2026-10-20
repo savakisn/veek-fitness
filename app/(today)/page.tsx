@@ -8,6 +8,7 @@ import { getRecentWorkouts, getRoutineCards, getStreak, type Location, type Rout
 import { getTodaysCall } from "@/lib/db/day-calls";
 import { getLatestInsight, getLatestMetrics } from "@/lib/db/insights";
 import { getReadiness } from "@/lib/db/readiness";
+import { explainReadinessSafe } from "@/lib/ai/readiness";
 import { getBackStatus } from "@/lib/db/back-status";
 import { getCurrentMealPlan } from "@/lib/db/kitchen";
 import type { Readiness } from "@/lib/readiness/types";
@@ -33,9 +34,9 @@ const longDate = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "lon
 // Gentle goal tags, the ones that still fit a rest or low-intensity day.
 const GENTLE = new Set(["recovery", "mobility", "yoga"]);
 
-// The day's call is fixed once made (lib/db/day-calls), but it doesn't know the
-// readiness limits. If it breaks them, show the first available routine that
-// doesn't, and say so. TODO(integration): move this into getTodaysCall.
+// getTodaysCall picks inside the readiness limits, but the call stays fixed for the
+// day, so a back check-in after the pick can tighten the limits under it. If the
+// call now breaks them, show the first available routine that doesn't, and say so.
 function fitToLimits(call: RoutineCard | null, cards: RoutineCard[], limits: Readiness["limits"]) {
   const breaks = (c: RoutineCard) =>
     limits.avoidCategories.includes(c.goalTag) ||
@@ -119,13 +120,15 @@ async function Hero({ user, location }: { user: User; location: Location }) {
     getRoutineCards(location, user),
   ]);
   const { routine, swappedFrom } = fitToLimits(call, cards, readiness.limits);
+  // The model rewrites the reason from the computed signals; any failure keeps the engine's headline.
+  const headline = await explainReadinessSafe(readiness);
   // Only what the sheet renders crosses to the client.
   const options = cards
     .filter((c) => c.available && c.id !== routine?.id)
     .map((c) => ({ slug: c.slug, name: c.name, estMinutes: c.estMinutes, goalTag: c.goalTag }));
   return (
     <VerdictHero
-      readiness={readiness}
+      readiness={{ ...readiness, headline }}
       routine={routine}
       swappedFrom={swappedFrom}
       options={options}
